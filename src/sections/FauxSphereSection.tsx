@@ -116,7 +116,6 @@ export function FauxSphereSection() {
               initial={false}
               animate={{
                 backdropFilter: cardActive ? "blur(0px)" : "blur(12px)",
-                WebkitBackdropFilter: cardActive ? "blur(0px)" : "blur(12px)",
                 backgroundColor: cardActive
                   ? "rgba(251,250,247,0)"
                   : "rgba(251,250,247,0.3)",

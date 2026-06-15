@@ -68,6 +68,10 @@ export function PhilosophySection() {
     },
   };
 
+  // <Strips /> is intentionally disabled (see below) but kept for easy
+  // re-enable; reference it so noUnusedLocals doesn't trip the build.
+  void Strips;
+
   return (
     <section className="relative h-full w-full overflow-hidden bg-[#fbfaf7]">
       {/* Drifting green leaves — spawn off the edges, float inward. The
