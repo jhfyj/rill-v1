@@ -1,12 +1,39 @@
+import { useEffect } from "react";
+import { Navbar } from "./components/Navbar";
+import { CustomCursor } from "./components/CustomCursor";
+import { SectionDeck } from "./components/SectionDeck";
+import { LandingSection } from "./sections/LandingSection";
+import { PhilosophySection } from "./sections/PhilosophySection";
+import { FauxSphereSection } from "./sections/FauxSphereSection";
+import { FinaleSection } from "./sections/FinaleSection";
+import { useSectionNavigation } from "./hooks/useSectionNavigation";
+
+const SECTIONS = [
+  <LandingSection key="landing" />,
+  <PhilosophySection key="philosophy" />,
+  <FauxSphereSection key="s3" />,
+  <FinaleSection key="s4" />,
+];
+
 function App() {
+  const { index, direction } = useSectionNavigation({ count: SECTIONS.length });
+
+  // Section 1 (Landing, index 0) uses the normal cursor: drop the
+  // `custom-cursor` class so index.css stops hiding the native pointer there.
+  useEffect(() => {
+    document.documentElement.classList.toggle("custom-cursor", index !== 0);
+  }, [index]);
+
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-950 text-slate-100">
-      <h1 className="text-6xl font-bold tracking-tight">Rill</h1>
-      <p className="text-slate-400">
-        Vite + React + TypeScript + Tailwind
-      </p>
-    </main>
-  )
+    <>
+      {/* Navbar floats above every section. */}
+      <Navbar />
+      <SectionDeck sections={SECTIONS} index={index} direction={direction} />
+      {/* No custom cursor on Section 1 (native cursor shows there). Leaf cursor
+          while the philosophy section (index 1) is active; dot elsewhere. */}
+      {index !== 0 && <CustomCursor mode={index === 1 ? "leaf" : "dot"} />}
+    </>
+  );
 }
 
-export default App
+export default App;

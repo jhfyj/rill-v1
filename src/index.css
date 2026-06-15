@@ -1,1 +1,184 @@
 @import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/* Rill design system — tokens                                         */
+/* Defined in @theme so they generate Tailwind utilities, e.g.         */
+/* bg-brand-700, text-ink, font-title, rounded-pill, shadow-glass.     */
+/* ------------------------------------------------------------------ */
+@theme {
+  /* Typography — system stacks with fallbacks (Figtree loaded via Google Fonts) */
+  --font-title: "Palatino Linotype", "Book Antiqua", Palatino, "URW Palladio L", serif;
+  --font-heading: Optima, "Optima nova", Candara, "Gill Sans", "Segoe UI", sans-serif;
+  --font-body: Figtree, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-code: "Fira Code", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Brand navy scale — derived from the Sign Up pill / Sign in link */
+  --color-brand-50: #eef2f7;
+  --color-brand-100: #d6e0ea;
+  --color-brand-200: #adc1d6;
+  --color-brand-300: #7e9bb9;
+  --color-brand-400: #4f739a;
+  --color-brand-500: #2f5680;
+  --color-brand-600: #234366;
+  --color-brand-700: #1d3a5c; /* primary button base */
+  --color-brand-800: #172d47;
+  --color-brand-900: #101f33;
+
+  /* Neutrals / surface */
+  --color-surface: #f4f2ee; /* cream navbar fill */
+  --color-surface-muted: #e9e6df;
+  --color-ink: #1a2233; /* default body text */
+  --color-ink-muted: #5b6473;
+
+  /* Radius */
+  --radius-pill: 9999px;
+
+  /* Shadow — glassmorphism */
+  --shadow-glass: 0 8px 30px rgba(16, 31, 51, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* ------------------------------------------------------------------ */
+/* Base layer                                                          */
+/* ------------------------------------------------------------------ */
+@layer base {
+  /* The site is a full-page section deck (see SectionDeck / useSectionNavigation):
+     native scroll is disabled and gestures swap whole sections instead. */
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body {
+    font-family: var(--font-body);
+    color: var(--color-ink);
+    background-color: #fbfaf7;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Custom cursor (see CustomCursor.tsx): hide the native pointer on
+     mouse devices. !important overrides per-element cursors like the
+     buttons' `cursor-pointer`. Touch devices keep their normal behavior.
+     Scoped to `html.custom-cursor` (App toggles the class per section) so
+     Section 1 can opt out and show the normal cursor. */
+  @media (pointer: fine) {
+    html.custom-cursor * {
+      cursor: none !important;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Primary button — frosted glass tinted light blue                    */
+/* A translucent blue fill over a backdrop blur reads as glass; two    */
+/* soft light-blue "blobs" drift, scale, and cross behind it on hover  */
+/* so the tint subtly shifts (border/shadow come from Tailwind).       */
+/* ------------------------------------------------------------------ */
+@layer components {
+  .btn-glass {
+    background-color: rgba(86, 152, 255, 0.10);
+    /* Blue-tinted drop shadow lifts it off the bar; inset highlight = glass. */
+    box-shadow: 0 4px 16px -2px rgba(255, 255, 255, 0.4),
+      0 2px 6px -2px rgba(43, 108, 196, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .btn-gradient-blobs {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    border-radius: inherit;
+  }
+
+  .btn-gradient-blobs::before,
+  .btn-gradient-blobs::after {
+    content: "";
+    position: absolute;
+    width: 85%;
+    height: 170%;
+    border-radius: 9999px;
+    filter: blur(16px);
+    opacity: 0.8;
+    will-change: transform;
+    /* Paused at rest, runs while the button is hovered */
+    animation-play-state: paused;
+    animation-duration: 8s;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+  }
+
+  .btn-gradient-blobs::before {
+    left: -12%;
+    top: -42%;
+    background: radial-gradient(circle, #aeccff 0%, rgba(174, 204, 255, 0) 70%);
+    animation-name: btn-blob-a;
+  }
+
+  .btn-gradient-blobs::after {
+    right: -12%;
+    bottom: -52%;
+    background: radial-gradient(circle, #6f9fef 0%, rgba(111, 159, 239, 0) 70%);
+    animation-name: btn-blob-b;
+    animation-duration: 9.5s;
+  }
+
+  .btn-glass:hover .btn-gradient-blobs::before,
+  .btn-glass:hover .btn-gradient-blobs::after {
+    animation-play-state: running;
+  }
+}
+
+@keyframes btn-blob-a {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(45%, 28%) scale(1.25);
+  }
+  66% {
+    transform: translate(18%, 12%) scale(0.9);
+  }
+}
+
+@keyframes btn-blob-b {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(-32%, -22%) scale(1.15);
+  }
+  66% {
+    transform: translate(-52%, 18%) scale(1.3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-gradient-blobs::before,
+  .btn-gradient-blobs::after {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Logo marquee — continuous left→right scroll on the landing strip    */
+/* The track contains N identical copies of the logo set; translating  */
+/* by exactly 1/N of the track width lands copy K+1 in copy K's slot,  */
+/* so the loop is seamless. Direction = left→right, so we go from the  */
+/* negative offset (next copy showing) toward 0 (first copy showing).  */
+/* The 33.333% matches the 3 copies rendered in LandingSection.        */
+/* ------------------------------------------------------------------ */
+@keyframes logo-marquee {
+  from {
+    transform: translate3d(-33.333%, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
