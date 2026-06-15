@@ -1,15 +1,9 @@
 import { useState } from "react";
-import { motion, useReducedMotion, type Transition, type Variants } from "motion/react";
+import { motion, useReducedMotion, type Transition } from "motion/react";
 import { Button } from "./Button";
 import { Logo } from "./Logo";
 import { INTRO } from "../lib/intro";
 import { cn } from "../lib/cn";
-
-const NAV_LINKS = [
-  { label: "Home", href: "#" },
-  { label: "Companies", href: "#" },
-  { label: "About", href: "#" },
-];
 
 /** Width of the bar before / after it expands on load. In compact mode the
  *  frame is narrower than the logo + buttons, so the buttons spill past its
@@ -29,25 +23,6 @@ export function Navbar() {
   const [open, setOpen] = useState(false);
   const reduceMotion = useReducedMotion();
 
-  // Center links blur in as the bar expands.
-  const linkContainer: Variants = {
-    hidden: {},
-    show: {
-      transition: {
-        delayChildren: reduceMotion ? 0 : INTRO.navbar + 0.85,
-        staggerChildren: reduceMotion ? 0 : 0.09,
-      },
-    },
-  };
-  const linkItem: Variants = {
-    hidden: { opacity: 0, filter: "blur(8px)" },
-    show: {
-      opacity: 1,
-      filter: "blur(0px)",
-      transition: { duration: reduceMotion ? 0 : 0.55, ease: "easeOut" },
-    },
-  };
-
   return (
     <header className="sticky top-1 z-50 px-4 pt-4">
       <motion.nav
@@ -56,32 +31,12 @@ export function Navbar() {
         transition={{ opacity: riseTransition, y: riseTransition, maxWidth: expandTransition }}
         className={cn("mx-auto w-full rounded-pill")}
       >
-        {/* Bar — logo + actions live in flow (flex, auto spacing); the center
-            links are absolutely centered so they reserve no space. While the
-            frame is compact the logo + buttons are wider than it, so the
-            buttons spill past the right edge until it expands to full width. */}
+        {/* Bar — logo (left) + actions (right) in flow. While the frame is
+            compact the logo + buttons are wider than it, so the buttons spill
+            past the right edge until it expands to full width. */}
         <div className="relative flex items-center justify-between gap-4 px-2 py-2">
           {/* Logo (left) */}
           <Logo className="pl-3 font-title text-2xl tracking-[0.15em] text-brand-800" />
-
-          {/* Center links — absolutely centered; blur in as the bar expands */}
-          <motion.ul
-            variants={linkContainer}
-            initial={reduceMotion ? false : "hidden"}
-            animate="show"
-            className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-12 md:flex"
-          >
-            {NAV_LINKS.map((link) => (
-              <motion.li key={link.label} variants={linkItem}>
-                <a
-                  href={link.href}
-                  className="font-heading text-[15px] text-ink transition-colors hover:text-brand-700"
-                >
-                  {link.label}
-                </a>
-              </motion.li>
-            ))}
-          </motion.ul>
 
           {/* Actions (right) — desktop buttons, or the mobile hamburger */}
           <div className="flex items-center gap-3">
@@ -120,19 +75,8 @@ export function Navbar() {
             </button>
           </div>
 
-          {/* Links — large, vertically centred. */}
-          <nav className="flex flex-1 flex-col justify-center gap-2 px-7">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                onClick={() => setOpen(false)}
-                className="py-2 font-title text-4xl text-brand-900 transition-colors hover:text-brand-700"
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
+          {/* Spacer pushes the CTA to the bottom (no nav links yet). */}
+          <div className="flex-1" />
 
           {/* CTA pinned to the bottom. */}
           <div className="px-7 pb-10">
