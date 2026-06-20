@@ -4,7 +4,7 @@ import { cn } from "../lib/cn";
 import { AnimatedText } from "./AnimatedText";
 
 export type ButtonVariant = "primary" | "secondary" | "tertiary";
-export type ButtonSize = "sm" | "md" | "lg";
+export type ButtonSize = "sm" | "md" | "lg" | "responsive";
 
 export interface ButtonProps extends HTMLMotionProps<"button"> {
   variant?: ButtonVariant;
@@ -33,6 +33,9 @@ const sizes: Record<ButtonSize, string> = {
   sm: "h-8 px-4 text-sm",
   md: "h-9 px-5 text-sm",
   lg: "h-10 px-6 text-base",
+  // Scales with the viewport: small on mobile, medium on tablet, large on
+  // desktop. Each breakpoint sets the full sm/md/lg dimensions for that step.
+  responsive: "h-8 px-4 text-sm sm:h-9 sm:px-5 lg:h-10 lg:px-6 lg:text-base",
 };
 
 export function Button({

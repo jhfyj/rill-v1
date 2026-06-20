@@ -141,7 +141,11 @@ export function FauxSphereSection() {
                 >
                   Let us match you with the fastest growing teams
                   <span className="mt-3 block font-body text-[18px] font-normal text-[#B4B4B4]">
-                    Move your cursor and click to discover the latest teams hiring now
+                    {/* Desktop uses cursor-lead rotation; touch/mobile uses a
+                        two-finger drag — so the verb changes by viewport. */}
+                    <span className="hidden md:inline">Move your cursor</span>
+                    <span className="md:hidden">Drag</span>{" "}
+                    and click to discover the latest teams hiring now
                   </span>
                 </motion.h2>
               </motion.div>

@@ -44,7 +44,13 @@ export function AnimatedText({ text, className }: AnimatedTextProps) {
   return (
     <span
       aria-label={text}
-      className={cn("relative inline-block whitespace-nowrap align-middle", className)}
+      className={cn(
+        // Flex row + items-center centres the glyph boxes regardless of font
+        // size — `inline-block` + `overflow-hidden` shifts the baseline, which
+        // left vertical centring off (most visible on the small button).
+        "relative inline-flex items-center whitespace-nowrap align-middle",
+        className,
+      )}
     >
       {text.split("").map((char, i) => {
         const glyph = char === " " ? NBSP : char;

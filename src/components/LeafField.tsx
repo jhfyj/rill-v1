@@ -59,6 +59,10 @@ interface Leaf {
  *  of the background on spawn rather than popping in. */
 const FADE_IN_MS = 1600;
 
+/** Peak opacity of a fully faded-in letter — keeps the floating text subtle so
+ *  it reads as a background texture behind the copy. */
+const MAX_OPACITY = 0.45;
+
 export const DEFAULT_LEAF_CONFIG: LeafConfig = {
   maxCount: 12,
   spawnIntervalMs: [600, 1800],
@@ -352,7 +356,7 @@ export function LeafField({ className, config }: LeafFieldProps) {
       // Subtle fade-in: opacity ramps 0 → 1 (smoothstep) over FADE_IN_MS so the
       // letter emerges from the background rather than popping in.
       const f = Math.min(1, (now - l.birth) / FADE_IN_MS);
-      el.setAttribute("opacity", String(f * f * (3 - 2 * f)));
+      el.setAttribute("opacity", String(MAX_OPACITY * f * f * (3 - 2 * f)));
       el.setAttribute(
         "transform",
         `translate(${l.x} ${l.y}) rotate(${l.angle})`,

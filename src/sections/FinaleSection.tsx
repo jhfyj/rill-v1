@@ -97,8 +97,14 @@ export function FinaleSection() {
           Book a meeting with us and get started today
         </motion.p>
         <motion.div variants={item} className="mt-8">
-          <Button variant="primary" size="lg">
-            Join the Waitlist
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => {
+              window.location.href = "mailto:areyoufor@rill.so";
+            }}
+          >
+            Get Early Access
           </Button>
         </motion.div>
       </motion.div>
@@ -108,14 +114,14 @@ export function FinaleSection() {
         initial={reduceMotion ? false : { opacity: 0 }}
         animate={{ opacity: shown || reduceMotion ? 1 : 0 }}
         transition={{ duration: reduceMotion ? 0 : 0.7, delay: 0.6, ease: EASE_OUT }}
-        className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-4 px-[9vw] pb-7 font-body text-[13px] text-brand-50/70"
+        className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-4 px-[9vw] pb-7 font-body text-[10px] text-brand-50/70 sm:text-xs lg:text-[13px]"
       >
         <span className="flex-1">rill@gmail.com</span>
         <span className="flex-1 text-center uppercase tracking-[0.18em]">
           ©2026 All Rights Reserved
         </span>
-        <span className="flex-1 text-right uppercase tracking-[0.18em] tabular-nums">
-          New York&nbsp;&nbsp;•&nbsp;&nbsp;{clock}
+        <span className="flex-1 whitespace-nowrap text-right uppercase tracking-[0.18em] tabular-nums">
+          New&nbsp;York&nbsp;&nbsp;•&nbsp;&nbsp;{clock}
         </span>
       </motion.footer>
     </section>

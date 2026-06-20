@@ -8,19 +8,15 @@ const EASE_OUT: Transition["ease"] = [0.22, 1, 0.36, 1];
 /** Vertical strips the section is sliced into. 33 matches the CodePen default. */
 const STEPS = 33;
 
-/** Headline typewriter — the first line is fixed; the second line ("Not …")
- *  cycles through these phrases, typing in and deleting out. */
-const LINE_1 = "What you can do.";
-const PHRASES = [
-  "what you can fit on paper.",
-  "what you say in interviews.",
-  "what you have on resume.",
-  "what you've done already.",
+/** Section headline (left column). */
+const HEADLINE = "You are more than keywords and what you can fit on a piece of paper";
+
+/** Body copy (right column), one entry per paragraph. */
+const PARAGRAPHS = [
+  "We believe the traditional hiring funnel is broken. Hiring decisions are based on resumes or networks, which are just proxies for capability.",
+  "Today hiring has turned into an optimization game. Companies use AI to screen resumes for keywords. Candidates use AI to optimize resumes to include them. Companies use AI to interview candidates. Candidates use AI to cheat on them. AI-powered tools enable mass applications and encourage spray-and-pray in job searching. The result is more applications, more filters, and more noise.",
+  "We believe there is a better way. That is, hiring based on what people can do, not how well they can navigate the system. So we built Rill to connect candidates directly with hiring managers and leave resumes out of the process.",
 ];
-const TYPE_MS = 55; // per-char typing delay
-const DELETE_MS = 28; // per-char deleting delay
-const HOLD_MS = 1900; // pause once a phrase is fully typed
-const GAP_MS = 300; // pause after deleting, before the next phrase
 
 /**
  * Section 2 — a soft, low-opacity multi-colour bubble pinned to the centre
@@ -49,24 +45,27 @@ export function PhilosophySection() {
   }, []);
   const animateState = shown || reduceMotion ? "show" : "hidden";
 
-  const textGroup: Variants = {
-    hidden: {},
-    show: {
-      transition: {
-        delayChildren: reduceMotion ? 0 : 0.2,
-        staggerChildren: reduceMotion ? 0 : 0.12,
-      },
-    },
-  };
+  // The items live inside the two column <div>s, so Motion's staggerChildren
+  // (which only times *direct* motion children) can't sequence them. Instead
+  // each item carries its own delay via `custom`, so we can order them across
+  // columns: label → headline → paragraphs (the longer text comes in last).
+  const textGroup: Variants = { hidden: {}, show: {} };
   const textItem: Variants = {
     hidden: { opacity: 0, y: 12, filter: "blur(8px)" },
-    show: {
+    show: (delay = 0) => ({
       opacity: 1,
       y: 0,
       filter: "blur(0px)",
-      transition: { duration: reduceMotion ? 0 : 0.7, ease: EASE_OUT },
-    },
+      transition: { duration: reduceMotion ? 0 : 0.7, ease: EASE_OUT, delay: reduceMotion ? 0 : delay },
+    }),
   };
+
+  // Entrance schedule (seconds). The body paragraphs start after the headline
+  // and stagger gently among themselves.
+  const D_LABEL = 0;
+  const D_HEADLINE = 0.35;
+  const D_BODY = 0.8;
+  const D_BODY_STAGGER = 0.18;
 
   // <Strips /> is intentionally disabled (see below) but kept for easy
   // re-enable; reference it so noUnusedLocals doesn't trip the build.
@@ -90,140 +89,53 @@ export function PhilosophySection() {
           width (the raw factors only cover ~89%, leaving a bare gap). */}
       {/* <Strips /> */}
 
-      {/* Centered text — only thing in the a11y tree. */}
+      {/* Two-column copy — label + headline on the left, body paragraphs on
+          the right. Stacks to a single column on small screens. This is the
+          only thing in the a11y tree. */}
       <motion.div
         variants={textGroup}
         initial={reduceMotion ? false : "hidden"}
         animate={animateState}
-        className="absolute inset-0 z-30 flex flex-col items-center justify-center px-[8vw] text-center"
+        className="absolute inset-0 z-30 flex items-center justify-center px-[8vw]"
       >
-        <motion.p
-          variants={textItem}
-          className="font-heading text-xs font-medium tracking-[0.3em] text-brand-700"
-          style={{ textShadow: "0 1px 12px rgba(255, 255, 255, 0.65)" }}
-        >
-          OUR PHILOSOPHY
-        </motion.p>
-        <TypingHeadline
-          variants={textItem}
-          reduceMotion={!!reduceMotion}
-          start={animateState === "show"}
-        />
-        <motion.p
-          variants={textItem}
-          className="mt-6 max-w-md font-body text-base text-ink"
-          style={{ textShadow: "0 1px 10px rgba(255, 255, 255, 0.55)" }}
-        >
-          Rill is the new way to connect people to work based on what they can
-          actually do.
-        </motion.p>
+        <div className="grid w-full max-w-5xl grid-cols-1 gap-x-16 gap-y-10 md:grid-cols-2">
+          {/* Left — section label + headline */}
+          <div>
+            <motion.p
+              variants={textItem}
+              custom={D_LABEL}
+              className="font-heading text-xs font-medium tracking-[0.3em] text-brand-700"
+              style={{ textShadow: "0 1px 12px rgba(255, 255, 255, 0.65)" }}
+            >
+              OUR PHILOSOPHY
+            </motion.p>
+            <motion.h2
+              variants={textItem}
+              custom={D_HEADLINE}
+              className="mt-6 max-w-md font-title text-3xl leading-snug text-brand-900 sm:text-4xl"
+              style={{ textShadow: "0 2px 20px rgba(255, 255, 255, 0.55)" }}
+            >
+              {HEADLINE}
+            </motion.h2>
+          </div>
+
+          {/* Right — body paragraphs */}
+          <div className="max-w-md space-y-5">
+            {PARAGRAPHS.map((para, i) => (
+              <motion.p
+                key={i}
+                variants={textItem}
+                custom={D_BODY + i * D_BODY_STAGGER}
+                className="font-body text-[15px] leading-relaxed text-ink"
+                style={{ textShadow: "0 1px 10px rgba(255, 255, 255, 0.55)" }}
+              >
+                {para}
+              </motion.p>
+            ))}
+          </div>
+        </div>
       </motion.div>
     </section>
-  );
-}
-
-/** Blinking text caret. */
-function Caret() {
-  return (
-    <motion.span
-      aria-hidden
-      className="font-sans font-light not-italic text-brand-700"
-      animate={{ opacity: [1, 1, 0, 0] }}
-      transition={{
-        duration: 1,
-        repeat: Infinity,
-        ease: "linear",
-        times: [0, 0.5, 0.5, 1],
-      }}
-    >
-      |
-    </motion.span>
-  );
-}
-
-/**
- * The philosophy headline, typed out on appear. Line 1 ("What you can do.")
- * types once and stays; line 2 keeps the static prefix "Not " and cycles the
- * remainder through PHRASES — typing each in, holding, deleting, then the next.
- * Both lines reserve their height (min-h) so the centred block never jumps.
- */
-function TypingHeadline({
-  variants,
-  reduceMotion,
-  start,
-}: {
-  variants: Variants;
-  reduceMotion: boolean;
-  start: boolean;
-}) {
-  const [line1, setLine1] = useState(reduceMotion ? LINE_1 : "");
-  const [phrase, setPhrase] = useState(reduceMotion ? PHRASES[0] : "");
-  // Whether the "Not …" line has begun (line 1 finished typing).
-  const [secondStarted, setSecondStarted] = useState(reduceMotion);
-
-  useEffect(() => {
-    if (reduceMotion || !start) return;
-    let cancelled = false;
-    const wait = (ms: number) =>
-      new Promise<void>((resolve) => window.setTimeout(resolve, ms));
-
-    async function run() {
-      // 1. Type the first line.
-      for (let i = 1; i <= LINE_1.length; i++) {
-        if (cancelled) return;
-        setLine1(LINE_1.slice(0, i));
-        await wait(TYPE_MS);
-      }
-      await wait(450);
-      if (cancelled) return;
-      setSecondStarted(true);
-      await wait(200);
-
-      // 2. Cycle the second line forever.
-      let idx = 0;
-      while (!cancelled) {
-        const target = PHRASES[idx];
-        for (let i = 1; i <= target.length; i++) {
-          if (cancelled) return;
-          setPhrase(target.slice(0, i));
-          await wait(TYPE_MS);
-        }
-        await wait(HOLD_MS);
-        for (let i = target.length - 1; i >= 0; i--) {
-          if (cancelled) return;
-          setPhrase(target.slice(0, i));
-          await wait(DELETE_MS);
-        }
-        await wait(GAP_MS);
-        idx = (idx + 1) % PHRASES.length;
-      }
-    }
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [start, reduceMotion]);
-
-  return (
-    <motion.h2
-      variants={variants}
-      aria-label={`${LINE_1} Not ${PHRASES[0]}`}
-      className="mt-6 font-title text-5xl italic leading-tight text-brand-900 sm:text-4xl lg:text-5xl"
-      style={{ textShadow: "0 2px 20px rgba(255, 255, 255, 0.55)" }}
-    >
-      <span aria-hidden className="block min-h-[1.25em]">
-        {line1}
-        {!secondStarted && !reduceMotion && <Caret />}
-      </span>
-      <span aria-hidden className="block min-h-[1.25em]">
-        {secondStarted && (
-          <>
-            Not {phrase}
-            {!reduceMotion && <Caret />}
-          </>
-        )}
-      </span>
-    </motion.h2>
   );
 }
 

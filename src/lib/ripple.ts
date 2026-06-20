@@ -69,7 +69,7 @@ export const DEFAULT_RIPPLE_CONFIG: RippleConfig = {
   // Centers spawn across the full viewport, lightly inset from each edge.
   spawnArea: { xMin: 0.05, xMax: 0.95, yMin: 0.1, yMax: 0.9 },
 
-  speed: 54,
+  speed: 32,
   frequency: 0.13,
   ringCountRange: [1, 2],
   strengthRange: [0.6, 1.0],

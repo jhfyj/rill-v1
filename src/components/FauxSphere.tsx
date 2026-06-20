@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
 import { useReducedMotion } from "motion/react";
 import { CompanyCard } from "./CompanyCard";
 
@@ -47,6 +47,8 @@ const DOT_COLOR = "#41496a";
 const BASE_DRIFT = 0.07; // rad/sec, horizontal idle drift
 const MAX_SPEED = 0.7; // rad/sec at the container edge
 const VEL_TAU = 0.35; // velocity easing time constant (sec)
+/** Touch flick momentum: how fast the post-drag velocity eases to idle (sec). */
+const MOMENTUM_TAU = 0.6;
 
 /** Focus mode (hovering a card): dim the rest + ease in/out. */
 const CARD_DIM = 0.22; // opacity factor for non-hovered cards
@@ -125,6 +127,16 @@ export function FauxSphere({
   const rRef = useRef(300);
   /** Last pointer position (client coords) and whether it's on-screen. */
   const pointerRef = useRef({ x: 0, y: 0, active: false });
+  /** Touch-drag state (mobile): two-finger drag switches to drag input. */
+  const touchModeRef = useRef(false);
+  const dragRef = useRef({ dragging: false, lastX: 0, lastY: 0, lastT: 0 });
+  /** Drag delta (px) not yet folded into the offset, consumed each frame. */
+  const pendingDragRef = useRef({ x: 0, y: 0 });
+  /** Latest drag velocity (px/sec) — carried as flick momentum on release. */
+  const dragVelRef = useRef({ x: 0, y: 0 });
+  /** True for the lifetime of a multi-touch gesture — while set we swallow the
+   *  touch events so the deck's one-finger swipe navigation stays inert. */
+  const multiTouchRef = useRef(false);
   /** Pool index of the card currently hovered (null = none). */
   const hoverRef = useRef<number | null>(null);
   /** Mirror of the `frozen` prop, readable inside the rAF loop. */
@@ -280,37 +292,63 @@ export function FauxSphere({
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
 
-      const container = containerRef.current;
-      let nx = 0;
-      let ny = 0;
-      if (container && pointerRef.current.active) {
-        const r = container.getBoundingClientRect();
-        if (r.width > 0) {
-          nx = (pointerRef.current.x - (r.left + r.width / 2)) / (r.width / 2);
-          ny = (pointerRef.current.y - (r.top + r.height / 2)) / (r.height / 2);
-          nx = Math.max(-1, Math.min(1, nx));
-          ny = Math.max(-1, Math.min(1, ny));
-        }
-      }
+      const R = rRef.current;
       // The active card is the locked one while frozen (panel open) — so the
       // canvas stays put on it and it stays highlighted even as the cursor moves
       // to the panel — otherwise it's whatever card is live-hovered.
       const active = frozenRef.current ? lockedRef.current : hoverRef.current;
-      // An active card stops the scroll: target velocity → 0 and the existing
-      // momentum easing damps it to a halt (and holds it there).
+      // An active card stops the scroll and holds it there.
       const paused = active !== null;
       // Notify on active/inactive transitions (drives the heading fade).
       if (paused !== wasActive) {
         wasActive = paused;
         onActiveChangeRef.current?.(paused);
       }
-      const targetVX = paused ? 0 : nx * MAX_SPEED + BASE_DRIFT;
-      const targetVY = paused ? 0 : ny * MAX_SPEED;
-      const kk = 1 - Math.exp(-dt / VEL_TAU);
-      vx += (targetVX - vx) * kk;
-      vy += (targetVY - vy) * kk;
-      ox += vx * dt;
-      oy += vy * dt;
+
+      if (touchModeRef.current) {
+        // Mobile: the finger drags the sphere directly; a flick coasts on.
+        const pend = pendingDragRef.current;
+        if (!paused) {
+          // Drag delta (px) → scroll offset (rad): the dome follows the finger.
+          ox -= pend.x / R;
+          oy -= pend.y / R;
+        }
+        pend.x = 0;
+        pend.y = 0;
+        if (dragRef.current.dragging || paused) {
+          // Position is finger-driven; keep velocity synced for release momentum.
+          vx = paused ? 0 : -dragVelRef.current.x / R;
+          vy = paused ? 0 : -dragVelRef.current.y / R;
+        } else {
+          // Released: ease the flick velocity back toward the idle drift.
+          const km = 1 - Math.exp(-dt / MOMENTUM_TAU);
+          vx += (BASE_DRIFT - vx) * km;
+          vy += (0 - vy) * km;
+          ox += vx * dt;
+          oy += vy * dt;
+        }
+      } else {
+        // Desktop: cursor position relative to centre sets a scroll velocity.
+        const container = containerRef.current;
+        let nx = 0;
+        let ny = 0;
+        if (container && pointerRef.current.active) {
+          const r = container.getBoundingClientRect();
+          if (r.width > 0) {
+            nx = (pointerRef.current.x - (r.left + r.width / 2)) / (r.width / 2);
+            ny = (pointerRef.current.y - (r.top + r.height / 2)) / (r.height / 2);
+            nx = Math.max(-1, Math.min(1, nx));
+            ny = Math.max(-1, Math.min(1, ny));
+          }
+        }
+        const targetVX = paused ? 0 : nx * MAX_SPEED + BASE_DRIFT;
+        const targetVY = paused ? 0 : ny * MAX_SPEED;
+        const kk = 1 - Math.exp(-dt / VEL_TAU);
+        vx += (targetVX - vx) * kk;
+        vy += (targetVY - vy) * kk;
+        ox += vx * dt;
+        oy += vy * dt;
+      }
 
       // Ease the focus dim in while a card is active, out when none is.
       const kf = 1 - Math.exp(-dt / FOCUS_TAU);
@@ -321,6 +359,52 @@ export function FauxSphere({
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
   }, [reduceMotion]);
+
+  // Touch-drag (mobile). TWO fingers drag/spin the sphere; one finger is left
+  // for the deck's swipe navigation. While 2+ fingers are down we stopPropagation
+  // so the deck never sees the gesture; touch-action:none also blocks pinch-zoom.
+  // We track the midpoint of the two touches as the drag point.
+  const onTouchStart = (e: ReactTouchEvent) => {
+    if (e.touches.length >= 2) {
+      multiTouchRef.current = true;
+      touchModeRef.current = true;
+      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      dragRef.current = {
+        dragging: true,
+        lastX: mx,
+        lastY: my,
+        lastT: performance.now(),
+      };
+      dragVelRef.current = { x: 0, y: 0 };
+    }
+    if (multiTouchRef.current) e.stopPropagation();
+  };
+  const onTouchMove = (e: ReactTouchEvent) => {
+    if (multiTouchRef.current) e.stopPropagation();
+    const d = dragRef.current;
+    if (!d.dragging || e.touches.length < 2) return;
+    const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const now = performance.now();
+    const dx = mx - d.lastX;
+    const dy = my - d.lastY;
+    const dts = Math.max(1, now - d.lastT) / 1000;
+    pendingDragRef.current.x += dx;
+    pendingDragRef.current.y += dy;
+    dragVelRef.current = { x: dx / dts, y: dy / dts };
+    d.lastX = mx;
+    d.lastY = my;
+    d.lastT = now;
+  };
+  const onTouchEnd = (e: ReactTouchEvent) => {
+    if (multiTouchRef.current) e.stopPropagation();
+    // Dropping below two fingers ends the drag (momentum carries on); the
+    // gesture block lifts only once every finger is up, so the stray final
+    // touchend can't reach the deck's swipe navigation.
+    if (e.touches.length < 2) dragRef.current.dragging = false;
+    if (e.touches.length === 0) multiTouchRef.current = false;
+  };
 
   return (
     <div
@@ -334,6 +418,21 @@ export function FauxSphere({
         WebkitMaskImage: EDGE_FADE_MASK,
       }}
     >
+      {/* Touch drag surface (mobile) — sits beneath the dots/cards so card taps
+          still land on the cards; catches TWO-finger drags on the empty dome to
+          spin it. touch-action:none blocks browser scroll/pinch mid-drag. */}
+      <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "auto",
+          touchAction: "none",
+        }}
+      />
+
       {/* Dot layer (flat) — kept in its OWN stacking context (separate from the
           cards) so it never z-sorts against the tilted cards: the opaque cards
           always paint over the dots, even on their back-tilted half. */}

@@ -3,6 +3,7 @@ import { motion, useReducedMotion, type Transition, type Variants } from "motion
 import { RippleField } from "../components/RippleField";
 import { LogoMarquee } from "../components/LogoMarquee";
 import { Button } from "../components/Button";
+import { TypingHeadline } from "../components/TypingHeadline";
 import { INTRO } from "../lib/intro";
 
 const EASE_OUT: Transition["ease"] = [0.22, 1, 0.36, 1];
@@ -96,35 +97,32 @@ export function LandingSection() {
         variants={headline}
         initial={reduceMotion ? false : "hidden"}
         animate={animateState}
-        className="absolute inset-x-0 top-1/2 z-20 mx-auto max-w-[640px] -translate-y-1/2 px-6 text-center"
+        className="absolute inset-x-0 top-1/2 z-20 mx-auto max-w-[900px] -translate-y-1/2 px-6 text-center"
       >
-        <motion.h1
+        <TypingHeadline
           variants={headlineItem}
-          className="font-title text-7xl leading-none tracking-tight text-brand-900 sm:text-8xl lg:text-9xl"
-        >
-          Rill
-        </motion.h1>
+          reduceMotion={!!reduceMotion}
+          start={animateState === "show"}
+          startDelayMs={headlineDelay * 1000}
+          className="font-title text-xl italic leading-tight tracking-tight text-brand-900 sm:text-4xl lg:text-5xl"
+        />
         <motion.p
           variants={headlineItem}
-          className="mt-4 font-heading text-xl text-ink-muted sm:text-2xl"
+          className="mt-4 font-heading text-sm text-ink-muted sm:text-lg lg:text-xl"
         >
-          The better way to hire.
+          Rill, the better way to hire.
         </motion.p>
-        <motion.form
-          variants={headlineItem}
-          onSubmit={(e) => e.preventDefault()}
-          className="mx-auto mt-8 flex w-full max-w-sm items-center gap-2 rounded-pill border border-black/6 bg-white/40 py-1.5 pl-5 pr-1.5 shadow-glass backdrop-blur-md"
-        >
-          <input
-            type="email"
-            placeholder="enter email to join the waitlist"
-            aria-label="Email address"
-            className="h-8 flex-1 bg-transparent font-body text-sm leading-none text-ink placeholder:text-ink/40 focus:outline-none"
-          />
-          <Button variant="primary" size="lg" type="submit">
-            Enter
+        <motion.div variants={headlineItem} className="mt-8">
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => {
+              window.location.href = "mailto:areyoufor@rill.so";
+            }}
+          >
+            Get Early Access
           </Button>
-        </motion.form>
+        </motion.div>
       </motion.div>
 
       {/* Company-logo marquee — strip clipped at the section edges, scrolling
