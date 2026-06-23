@@ -82,10 +82,10 @@ export function LandingSection() {
 
   return (
     <section className="relative h-full w-full overflow-hidden bg-[#fbfaf7]">
-      {/* Ripples — right ~45%, behind the content, hidden on small screens. */}
+      {/* Ripples — right ~45%, behind the content. */}
       <RippleField
         startDelayMs={rippleDelayMs}
-        className="pointer-events-none absolute inset-0 z-10 hidden md:block"
+        className="pointer-events-none absolute inset-0 z-10"
       />
 
       {/* The light-blue wash now lives INSIDE the shader (baseColor +
@@ -138,8 +138,17 @@ export function LandingSection() {
           // inset-x-0 + mx-auto + max-w-* = centered cap. The strip is clipped
           // at this cap's edges, so logos enter/exit there instead of running
           // all the way to the section sides.
-          "absolute inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[1100px] overflow-hidden px-4 pb-[6vh] pt-16"
+          "absolute inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[820px] overflow-hidden px-4 pb-[6vh] pt-16"
         }
+        // Soft horizontal fade at the clip edges: logos dissolve into the
+        // background as they scroll past the left/right ends of the frame
+        // instead of popping in/out at a hard edge.
+        style={{
+          maskImage:
+            "linear-gradient(to right, transparent 0, black 10%, black 90%, transparent 100%)",
+          WebkitMaskImage:
+            "linear-gradient(to right, transparent 0, black 10%, black 90%, transparent 100%)",
+        }}
       >
         <LogoMarquee />
       </motion.div>

@@ -81,7 +81,15 @@ export function CenterBlob({ className }: CenterBlobProps) {
       timer = setTimeout(() => {
         if (ripplesRef.current.length < MAX_RIPPLES) {
           ripplesRef.current.push({ birth: performance.now() });
-          window.dispatchEvent(new CustomEvent("centerblob-ripple"));
+          // Carry the ripple's origin (the blob's on-screen centre) so
+          // listeners can react relative to where the ring actually starts.
+          const rect = svgRef.current?.getBoundingClientRect();
+          const origin = rect
+            ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+            : undefined;
+          window.dispatchEvent(
+            new CustomEvent("centerblob-ripple", { detail: { origin } }),
+          );
         }
         schedule();
       }, lo + Math.random() * (hi - lo));

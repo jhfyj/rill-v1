@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion, type Transition, type Variants } from "motion/react";
 import { CenterBlob } from "../components/CenterBlob";
 import { LeafField } from "../components/LeafField";
+import { LetterCascade } from "../components/LetterCascade";
 
 const EASE_OUT: Transition["ease"] = [0.22, 1, 0.36, 1];
 
@@ -34,6 +35,17 @@ const PARAGRAPHS = [
  */
 export function PhilosophySection() {
   const reduceMotion = useReducedMotion();
+
+  // The drifting background letters (LeafField) run a per-frame rAF loop that
+  // tanks performance on phones, so we skip that layer below `md` (768px).
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   // Post-mount state flip so the text entrance plays on every re-entry — the
   // deck's <AnimatePresence> suppresses nested mount animations, but a plain
@@ -73,9 +85,10 @@ export function PhilosophySection() {
 
   return (
     <section className="relative h-full w-full overflow-hidden bg-[#fbfaf7]">
-      {/* Drifting green leaves — spawn off the edges, float inward. The
-          centre-blob's ripple events nudge them outward radially. */}
-      <LeafField className="absolute inset-0 z-[5]" />
+      {/* Drifting background letters — spawn off the edges, float inward. The
+          centre-blob's ripple events nudge them outward radially. Skipped on
+          mobile: the per-frame rAF loop drags performance on phones. */}
+      {!isMobile && <LeafField className="absolute inset-0 z-[5]" />}
 
       {/* Centred wobbly bubble — purple/blue/turquoise radial gradient with
           a self-contained turbulence + displacement filter that morphs the
@@ -115,7 +128,15 @@ export function PhilosophySection() {
               className="mt-6 max-w-md font-title text-3xl leading-snug text-brand-900 sm:text-4xl"
               style={{ textShadow: "0 2px 20px rgba(255, 255, 255, 0.55)" }}
             >
-              {HEADLINE}
+              {/* Each ambient ripple from CenterBlob fires `centerblob-ripple`
+                  carrying the ring's origin; the headline cascades outward from
+                  that point — letters nearest the ripple flip first — so the
+                  ring appears to pass through the text. */}
+              <LetterCascade
+                text={HEADLINE}
+                triggerOnEvent="centerblob-ripple"
+                waveSpeed={900}
+              />
             </motion.h2>
           </div>
 

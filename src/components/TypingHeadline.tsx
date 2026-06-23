@@ -4,6 +4,8 @@ import { motion, type Variants } from "motion/react";
 /** Headline typewriter — the first line is fixed; the second line ("Not …")
  *  cycles through these phrases, typing in and deleting out. */
 const LINE_1 = "What you can do.";
+/** Static lead-in on line 2, typed out before the cycling phrase begins. */
+const PREFIX = "Not ";
 const PHRASES = [
   "what you can fit on paper.",
   "what you say in interviews.",
@@ -64,6 +66,8 @@ export function TypingHeadline({
 }) {
   const [line1, setLine1] = useState(reduceMotion ? LINE_1 : "");
   const [phrase, setPhrase] = useState(reduceMotion ? PHRASES[0] : "");
+  // The "Not " lead-in, typed out char-by-char once line 2 begins.
+  const [prefix, setPrefix] = useState(reduceMotion ? PREFIX : "");
   // Whether the "Not …" line has begun (line 1 finished typing).
   const [secondStarted, setSecondStarted] = useState(reduceMotion);
 
@@ -89,7 +93,14 @@ export function TypingHeadline({
       setSecondStarted(true);
       await wait(200);
 
-      // 2. Cycle the second line forever.
+      // 2. Type the static "Not " lead-in once; it stays put while phrases cycle.
+      for (let i = 1; i <= PREFIX.length; i++) {
+        if (cancelled) return;
+        setPrefix(PREFIX.slice(0, i));
+        await wait(TYPE_MS);
+      }
+
+      // 3. Cycle the second line forever.
       let idx = 0;
       while (!cancelled) {
         const target = PHRASES[idx];
@@ -128,7 +139,8 @@ export function TypingHeadline({
       <span aria-hidden className="block min-h-[1.25em] whitespace-nowrap">
         {secondStarted && (
           <>
-            Not {phrase}
+            {prefix}
+            {phrase}
             {!reduceMotion && <Caret />}
           </>
         )}
