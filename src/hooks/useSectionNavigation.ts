@@ -112,11 +112,36 @@ export function useSectionNavigation({
     };
 
     let touchStartY: number | null = null;
+    // Only single-finger swipes navigate. A multi-finger gesture (e.g. the
+    // two-finger drag that rotates the Section 3 sphere) must never advance the
+    // deck, so we flag the gesture the moment a second finger appears and stay
+    // flagged until every finger has lifted.
+    let multiTouch = false;
     const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length > 1) {
+        multiTouch = true;
+        touchStartY = null;
+        return;
+      }
       touchStartY = e.touches[0]?.clientY ?? null;
     };
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 1) {
+        multiTouch = true;
+        touchStartY = null;
+      }
+    };
     const onTouchEnd = (e: TouchEvent) => {
-      if (touchStartY === null) return;
+      // Reset the multi-touch flag only once all fingers are off the screen.
+      if (e.touches.length === 0) {
+        const wasMulti = multiTouch;
+        multiTouch = false;
+        if (wasMulti) {
+          touchStartY = null;
+          return;
+        }
+      }
+      if (multiTouch || touchStartY === null) return;
       const endY = e.changedTouches[0]?.clientY ?? touchStartY;
       const delta = touchStartY - endY;
       if (Math.abs(delta) > 50) {
@@ -129,12 +154,14 @@ export function useSectionNavigation({
     window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKey);
     window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
     window.addEventListener("touchend", onTouchEnd, { passive: true });
 
     return () => {
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
       window.removeEventListener("touchend", onTouchEnd);
     };
   }, [enabled, wheelThreshold, count, move, next, prev, goTo]);
