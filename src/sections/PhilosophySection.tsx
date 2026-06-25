@@ -88,15 +88,24 @@ export function PhilosophySection({ onNext }: PhilosophySectionProps) {
   const dwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Whether the scroll container is currently at the bottom.
   const atBottomRef = useRef(false);
+  // Dwell timer for the top edge (back-navigation).
+  const topDwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Whether the user has dwelled at the top long enough to go back.
+  const topDwellReadyRef = useRef(false);
 
   // Reset state whenever the section becomes active (re-mounts).
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     nextFiredRef.current = false;
     atBottomRef.current = false;
+    topDwellReadyRef.current = false;
     if (dwellTimerRef.current) {
       clearTimeout(dwellTimerRef.current);
       dwellTimerRef.current = null;
+    }
+    if (topDwellTimerRef.current) {
+      clearTimeout(topDwellTimerRef.current);
+      topDwellTimerRef.current = null;
     }
   }, []);
 
@@ -111,21 +120,33 @@ export function PhilosophySection({ onNext }: PhilosophySectionProps) {
 
     const handleScroll = () => {
       const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 8;
+      const atTop = el.scrollTop < 4;
 
+      // ── Bottom dwell ──────────────────────────────────────────────────────
       if (atBottom && !atBottomRef.current) {
-        // Just arrived at the bottom — start the dwell timer.
         atBottomRef.current = true;
         dwellTimerRef.current = setTimeout(() => {
-          // Dwell complete: clear the ref to null so the overscroll
-          // condition (dwellTimerRef.current === null) becomes true.
           dwellTimerRef.current = null;
         }, 600);
       } else if (!atBottom) {
-        // Scrolled back up — cancel everything.
         atBottomRef.current = false;
         if (dwellTimerRef.current) {
           clearTimeout(dwellTimerRef.current);
           dwellTimerRef.current = null;
+        }
+      }
+
+      // ── Top dwell (300ms before back-swipe is allowed) ────────────────────
+      if (atTop && !topDwellReadyRef.current && !topDwellTimerRef.current) {
+        topDwellTimerRef.current = setTimeout(() => {
+          topDwellReadyRef.current = true;
+          topDwellTimerRef.current = null;
+        }, 300);
+      } else if (!atTop) {
+        topDwellReadyRef.current = false;
+        if (topDwellTimerRef.current) {
+          clearTimeout(topDwellTimerRef.current);
+          topDwellTimerRef.current = null;
         }
       }
     };
@@ -167,12 +188,11 @@ export function PhilosophySection({ onNext }: PhilosophySectionProps) {
       const delta = swipeStartY - endY; // positive = swipe up (scroll down)
       swipeStartY = null;
 
-      const atTop = el.scrollTop < 4;
-
-      // Upward swipe at the very top — let the deck handle it (go back).
-      if (atTop && delta < -40) {
+      // Upward swipe at the very top after 300ms dwell — let the deck handle it.
+      if (topDwellReadyRef.current && delta < -40) {
         // Do NOT stopPropagation — the deck's window touchend listener
         // will see this and navigate back to Section 1.
+        topDwellReadyRef.current = false;
         return;
       }
 
