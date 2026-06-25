@@ -42,14 +42,24 @@
 /* Base layer                                                          */
 /* ------------------------------------------------------------------ */
 @layer base {
-  /* The site is a full-page section deck (see SectionDeck / useSectionNavigation):
-     native scroll is disabled and gestures swap whole sections instead. */
+  /* Desktop: full-page section deck — native scroll locked, gestures swap sections. */
   html,
   body,
   #root {
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+  }
+
+  /* Mobile: plain vertical scroll — unlock overflow so sections stack naturally. */
+  @media (max-width: 767px) {
+    html,
+    body,
+    #root {
+      height: auto;
+      overflow: visible;
+      overscroll-behavior: auto;
+    }
   }
 
   body {

@@ -44,11 +44,12 @@ export function FauxSphereSection() {
 
   // On phones the detail panel takes the full viewport width instead of the
   // fixed 520px side panel. `md` = 768px.
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches
+  );
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
     const update = () => setIsMobile(mq.matches);
-    update();
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
@@ -102,6 +103,77 @@ export function FauxSphereSection() {
     ease: EASE_OUT,
   };
 
+  // ── Mobile: sphere fills the screen height, card taps open full-screen panel ──
+  if (isMobile) {
+    return (
+      <section className="relative w-full bg-[#fbfaf7]">
+        {/* Sphere fills the viewport height on mobile */}
+        <div
+          className="relative w-full overflow-hidden"
+          style={{ height: "100svh" }}
+          onClick={() => setPanelOpen(false)}
+        >
+          <FauxSphere
+            className="pointer-events-none absolute inset-0 z-10"
+            companies={companies}
+            onCardClick={(company) => {
+              setActiveCompany(company ?? null);
+              setPanelOpen(true);
+            }}
+            frozen={panelOpen}
+            onActiveChange={setCardActive}
+          />
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center px-6 text-center">
+            <motion.div
+              animate={{ opacity: cardActive ? 0 : 1 }}
+              transition={{ duration: 0.35, ease: EASE_OUT }}
+            >
+              <motion.div
+                variants={textGroup}
+                initial={reduceMotion ? false : "hidden"}
+                animate={animateState}
+              >
+                <motion.h2
+                  variants={textItem}
+                  className="max-w-xs font-title text-2xl leading-tight text-brand-900"
+                  style={{ textShadow: "0 2px 20px rgba(255,255,255,0.55)" }}
+                >
+                  Let us match you with the fastest growing teams
+                  <span className="mt-2 block font-body text-[14px] font-normal text-[#B4B4B4]">
+                    Drag with two fingers and tap to discover the latest teams hiring now
+                  </span>
+                </motion.h2>
+              </motion.div>
+            </motion.div>
+          </div>
+        </div>
+
+        {/* Full-screen detail panel */}
+        {createPortal(
+          <AnimatePresence>
+            {panelOpen && (
+              <motion.aside
+                key="company-panel-mobile"
+                className="fixed inset-0 z-[60] overflow-hidden bg-white"
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={panelTransition}
+              >
+                <CompanyDetailPanel
+                  {...(activeCompany ?? {})}
+                  onClose={() => setPanelOpen(false)}
+                />
+              </motion.aside>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
+      </section>
+    );
+  }
+
+  // ── Desktop: original split layout ────────────────────────────────────────
   return (
     <section className="relative flex h-full w-full overflow-hidden bg-[#fbfaf7]">
       {/* Left column — sphere + heading. Flex-1 so it shrinks when the spacer

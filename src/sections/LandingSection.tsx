@@ -17,6 +17,17 @@ let hasLoadedOnce = false;
 
 export function LandingSection() {
   const reduceMotion = useReducedMotion();
+
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
   // Stable for this mount: true only on the first ever page load.
   const [isFirstLoad] = useState(() => !hasLoadedOnce);
   useEffect(() => {
@@ -80,6 +91,61 @@ export function LandingSection() {
   // Silence unused-var when stagger isn't used.
   void logoStagger;
 
+  // ── Mobile: plain block layout ───────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <section className="relative w-full bg-[#fbfaf7] flex flex-col items-center justify-center px-6 py-24">
+        <RippleField
+          startDelayMs={rippleDelayMs}
+          className="pointer-events-none absolute inset-0 z-10"
+        />
+        <motion.div
+          variants={headline}
+          initial={reduceMotion ? false : "hidden"}
+          animate={animateState}
+          className="relative z-20 w-full max-w-[900px] text-center"
+        >
+          <TypingHeadline
+            variants={headlineItem}
+            reduceMotion={!!reduceMotion}
+            start={animateState === "show"}
+            startDelayMs={headlineDelay * 1000}
+            className="font-title text-3xl italic leading-tight tracking-tight text-brand-900"
+          />
+          <motion.p
+            variants={headlineItem}
+            className="mt-4 font-heading text-sm text-ink-muted"
+          >
+            Rill, the better way to hire.
+          </motion.p>
+          <motion.div variants={headlineItem} className="mt-8">
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => { window.location.href = "mailto:areyoufor@rill.so"; }}
+            >
+              Get Early Access
+            </Button>
+          </motion.div>
+        </motion.div>
+        <motion.div
+          variants={logoRow}
+          initial={reduceMotion ? false : "hidden"}
+          animate={animateState}
+          aria-label="Trusted by"
+          className="relative z-20 mt-16 w-full max-w-[820px] overflow-hidden px-4"
+          style={{
+            maskImage: "linear-gradient(to right, transparent 0, black 10%, black 90%, transparent 100%)",
+            WebkitMaskImage: "linear-gradient(to right, transparent 0, black 10%, black 90%, transparent 100%)",
+          }}
+        >
+          <LogoMarquee />
+        </motion.div>
+      </section>
+    );
+  }
+
+  // ── Desktop: original absolute layout ────────────────────────────────────
   return (
     <section className="relative h-full w-full overflow-hidden bg-[#fbfaf7]">
       {/* Ripples — right ~45%, behind the content. */}
@@ -87,10 +153,6 @@ export function LandingSection() {
         startDelayMs={rippleDelayMs}
         className="pointer-events-none absolute inset-0 z-10"
       />
-
-      {/* The light-blue wash now lives INSIDE the shader (baseColor +
-          baseStrength in lib/ripple.ts) so it paints only on ripple pixels
-          — the cream background stays untinted. No overlay needed. */}
 
       {/* Headline — centered, above the ripples. */}
       <motion.div
@@ -125,24 +187,13 @@ export function LandingSection() {
         </motion.div>
       </motion.div>
 
-      {/* Company-logo marquee — strip clipped at the section edges, scrolling
-          left→right forever, with macOS-dock-style magnetic magnification on
-          the logos near the cursor (see LogoMarquee). The extra top padding is
-          headroom so magnified logos aren't clipped by overflow-hidden. */}
+      {/* Company-logo marquee */}
       <motion.div
         variants={logoRow}
         initial={reduceMotion ? false : "hidden"}
         animate={animateState}
         aria-label="Trusted by"
-        className={
-          // inset-x-0 + mx-auto + max-w-* = centered cap. The strip is clipped
-          // at this cap's edges, so logos enter/exit there instead of running
-          // all the way to the section sides.
-          "absolute inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[820px] overflow-hidden px-4 pb-[6vh] pt-16"
-        }
-        // Soft horizontal fade at the clip edges: logos dissolve into the
-        // background as they scroll past the left/right ends of the frame
-        // instead of popping in/out at a hard edge.
+        className="absolute inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[820px] overflow-hidden px-4 pb-[6vh] pt-16"
         style={{
           maskImage:
             "linear-gradient(to right, transparent 0, black 10%, black 90%, transparent 100%)",

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, useReducedMotion, type Transition, type Variants } from "motion/react";
 import { CenterBlob } from "../components/CenterBlob";
 import { LeafField } from "../components/LeafField";
@@ -6,7 +6,7 @@ import { LetterCascade } from "../components/LetterCascade";
 
 const EASE_OUT: Transition["ease"] = [0.22, 1, 0.36, 1];
 
-/** Vertical strips the section is sliced into. 33 matches the CodePen default. */
+/** Vertical strips the section is sliced into. */
 const STEPS = 33;
 
 /** Section headline (left column). */
@@ -20,7 +20,10 @@ const PARAGRAPHS = [
 ];
 
 interface PhilosophySectionProps {
-  /** Called when the user scrolls to the very bottom — advance to next section. */
+  /**
+   * Desktop only — called when the user scrolls to the very bottom of the
+   * section to advance the deck. Not used on mobile (plain page scroll).
+   */
   onNext?: () => void;
 }
 
@@ -29,23 +32,20 @@ interface PhilosophySectionProps {
  * of the section, viewed through a fractal-glass strip overlay.
  *
  * Desktop: fixed two-column layout, centred vertically, no inner scroll.
- * Mobile: content starts at 20% VPH, scrolls within the section, top/bottom
- *         fade masks, and advances to the next section when the user reaches
- *         the bottom of the content.
- *
- * Touch events on the scroll container are stopped from bubbling to the
- * window so the deck's global touchend handler never sees them — preventing
- * an immediate jump to Section 3 on the first swipe.
+ *          useSectionNavigation drives navigation via wheel/key/swipe.
+ * Mobile:  plain block in the page flow — the page itself scrolls vertically.
+ *          No inner scroll container, no touch interception, no dwell timers.
  */
-export function PhilosophySection({ onNext }: PhilosophySectionProps) {
+export function PhilosophySection({ onNext: _onNext }: PhilosophySectionProps) {
   const reduceMotion = useReducedMotion();
 
   // Disable LeafField rAF loop on mobile.
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches
+  );
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
     const update = () => setIsMobile(mq.matches);
-    update();
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
@@ -79,152 +79,6 @@ export function PhilosophySection({ onNext }: PhilosophySectionProps) {
   const D_BODY_STAGGER = 0.18;
 
   void Strips;
-
-  // ── Mobile scroll logic ───────────────────────────────────────────────────
-  const scrollRef = useRef<HTMLDivElement>(null);
-  // Prevent firing onNext more than once per visit to the section.
-  const nextFiredRef = useRef(false);
-  // Dwell timer: armed when the user first reaches the bottom.
-  const dwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Whether the scroll container is currently at the bottom.
-  const atBottomRef = useRef(false);
-  // Dwell timer for the top edge (back-navigation).
-  const topDwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Whether the user has dwelled at the top long enough to go back.
-  const topDwellReadyRef = useRef(false);
-
-  // Reset state whenever the section becomes active (re-mounts).
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-    nextFiredRef.current = false;
-    atBottomRef.current = false;
-    topDwellReadyRef.current = false;
-    if (dwellTimerRef.current) {
-      clearTimeout(dwellTimerRef.current);
-      dwellTimerRef.current = null;
-    }
-    if (topDwellTimerRef.current) {
-      clearTimeout(topDwellTimerRef.current);
-      topDwellTimerRef.current = null;
-    }
-  }, []);
-
-  // NOTE: touch stopPropagation is now handled inside the extra-swipe
-  // useEffect below, which combines both concerns in one listener set.
-
-  // Detect reaching the bottom and arm the trigger after a 600ms dwell.
-  useEffect(() => {
-    if (!isMobile) return;
-    const el = scrollRef.current;
-    if (!el) return;
-
-    const handleScroll = () => {
-      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 8;
-      const atTop = el.scrollTop < 4;
-
-      // ── Bottom dwell ──────────────────────────────────────────────────────
-      if (atBottom && !atBottomRef.current) {
-        atBottomRef.current = true;
-        dwellTimerRef.current = setTimeout(() => {
-          dwellTimerRef.current = null;
-        }, 600);
-      } else if (!atBottom) {
-        atBottomRef.current = false;
-        if (dwellTimerRef.current) {
-          clearTimeout(dwellTimerRef.current);
-          dwellTimerRef.current = null;
-        }
-      }
-
-      // ── Top dwell (300ms before back-swipe is allowed) ────────────────────
-      if (atTop && !topDwellReadyRef.current && !topDwellTimerRef.current) {
-        topDwellTimerRef.current = setTimeout(() => {
-          topDwellReadyRef.current = true;
-          topDwellTimerRef.current = null;
-        }, 300);
-      } else if (!atTop) {
-        topDwellReadyRef.current = false;
-        if (topDwellTimerRef.current) {
-          clearTimeout(topDwellTimerRef.current);
-          topDwellTimerRef.current = null;
-        }
-      }
-    };
-
-    el.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      el.removeEventListener("scroll", handleScroll);
-      if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
-    };
-  }, [isMobile]);
-
-  // Touch handling:
-  // - Always stopPropagation so the deck never sees mid-content swipes.
-  // - Exception: upward swipe (delta < -40px) when already at the TOP of
-  //   the scroll container — let it propagate so the deck can go back to
-  //   Section 1.
-  // - Downward overscroll at the bottom (after 600ms dwell) fires onNext.
-  useEffect(() => {
-    if (!isMobile) return;
-    const el = scrollRef.current;
-    if (!el) return;
-
-    let swipeStartY: number | null = null;
-
-    const onTouchStart = (e: TouchEvent) => {
-      swipeStartY = e.touches[0]?.clientY ?? null;
-      // Always stop propagation on touchstart to prevent deck interference.
-      e.stopPropagation();
-    };
-    const onTouchMove = (e: TouchEvent) => {
-      e.stopPropagation();
-    };
-    const onTouchEnd = (e: TouchEvent) => {
-      if (swipeStartY === null) {
-        e.stopPropagation();
-        return;
-      }
-      const endY = e.changedTouches[0]?.clientY ?? swipeStartY;
-      const delta = swipeStartY - endY; // positive = swipe up (scroll down)
-      swipeStartY = null;
-
-      // Upward swipe at the very top after 300ms dwell — let the deck handle it.
-      if (topDwellReadyRef.current && delta < -40) {
-        // Do NOT stopPropagation — the deck's window touchend listener
-        // will see this and navigate back to Section 1.
-        topDwellReadyRef.current = false;
-        return;
-      }
-
-      // All other swipes: stop propagation so the deck is never triggered.
-      e.stopPropagation();
-
-      // Downward overscroll at the bottom — advance to Section 3.
-      if (
-        atBottomRef.current &&
-        dwellTimerRef.current === null &&
-        delta > 30 &&
-        !nextFiredRef.current
-      ) {
-        nextFiredRef.current = true;
-        onNext?.();
-        setTimeout(() => {
-          nextFiredRef.current = false;
-          atBottomRef.current = false;
-        }, 1500);
-      }
-    };
-
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchmove", onTouchMove, { passive: true });
-    el.addEventListener("touchend", onTouchEnd, { passive: true });
-
-    return () => {
-      el.removeEventListener("touchstart", onTouchStart);
-      el.removeEventListener("touchmove", onTouchMove);
-      el.removeEventListener("touchend", onTouchEnd);
-    };
-  }, [isMobile, onNext]);
 
   // ── Shared content ────────────────────────────────────────────────────────
   const content = (
@@ -275,60 +129,30 @@ export function PhilosophySection({ onNext }: PhilosophySectionProps) {
     </motion.div>
   );
 
+  // ── Mobile: plain block layout in the page flow ───────────────────────────
+  if (isMobile) {
+    return (
+      <section className="relative w-full overflow-hidden bg-[#fbfaf7] py-20 px-6">
+        <CenterBlob className="absolute inset-0 z-10 pointer-events-none" />
+        <div className="relative z-20 pt-10">
+          {content}
+        </div>
+      </section>
+    );
+  }
+
+  // ── Desktop: original fixed-height centred layout ─────────────────────────
   return (
     <section className="relative h-full w-full overflow-hidden bg-[#fbfaf7]">
       {/* Drifting background letters — desktop only. */}
-      {!isMobile && <LeafField className="absolute inset-0 z-[5]" />}
+      <LeafField className="absolute inset-0 z-[5]" />
 
-      {/* Centre blob — wobble + ripples disabled on mobile (see CenterBlob). */}
+      {/* Centre blob — wobble + ripples on desktop, plain CSS gradient on mobile. */}
       <CenterBlob className="absolute inset-0 z-10" />
 
-      {/* <Strips /> — temporarily disabled */}
-
-      {isMobile ? (
-        // ── Mobile: scrollable container starting at 20% VPH ──────────────
-        <div className="absolute inset-0 z-30 pointer-events-none">
-          {/* Scroll container — touch events stop here, never reach the deck */}
-          <div
-            ref={scrollRef}
-            className="absolute inset-0 overflow-y-auto pointer-events-auto"
-            style={{ WebkitOverflowScrolling: "touch" }}
-          >
-            {/* 20% VPH top spacer so content starts below the fold */}
-            <div style={{ height: "20vh" }} aria-hidden />
-            <div className="px-6 pb-20">
-              {content}
-            </div>
-          </div>
-
-          {/* Top fade — covers content scrolling under the top edge */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 z-10"
-            style={{
-              height: "22vh",
-              background:
-                "linear-gradient(to bottom, #fbfaf7 40%, transparent 100%)",
-            }}
-          />
-
-          {/* Bottom fade — covers content approaching the bottom edge */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
-            style={{
-              height: "14vh",
-              background:
-                "linear-gradient(to top, #fbfaf7 30%, transparent 100%)",
-            }}
-          />
-        </div>
-      ) : (
-        // ── Desktop: original centred absolute layout ─────────────────────
-        <div className="absolute inset-0 z-30 flex items-center justify-center px-[8vw]">
-          {content}
-        </div>
-      )}
+      <div className="absolute inset-0 z-30 flex items-center justify-center px-[8vw]">
+        {content}
+      </div>
     </section>
   );
 }
@@ -355,20 +179,9 @@ function Strips() {
               WebkitBackdropFilter: "blur(8px) saturate(140%)",
               backgroundColor: "rgba(255,255,255,0.05)",
             }}
-          >
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  "linear-gradient(90deg, rgba(255,255,255,0) 72.63%, rgba(255,255,255,0.08) 99%, rgba(255,255,255,0.6) 100%)",
-              }}
-            />
-          </div>
+          />
         );
       })}
     </div>
   );
 }
-
-export default PhilosophySection;

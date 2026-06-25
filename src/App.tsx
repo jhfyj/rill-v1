@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Navbar } from "./components/Navbar";
 import { CustomCursor } from "./components/CustomCursor";
 import { SectionDeck } from "./components/SectionDeck";
@@ -9,43 +9,72 @@ import { FinaleSection } from "./sections/FinaleSection";
 import { useSectionNavigation } from "./hooks/useSectionNavigation";
 import { AdminPage } from "./pages/AdminPage";
 
+/** Detect mobile synchronously so the correct layout is painted on first render. */
+function getIsMobile() {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+}
+
 function App() {
-  // Route /admin to the admin dashboard; everything else is the main site.
   const isAdmin = window.location.pathname.startsWith("/admin");
 
+  const [isMobile, setIsMobile] = useState(getIsMobile);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // Desktop deck navigation — disabled on mobile and admin.
   const { index, direction, next } = useSectionNavigation({
     count: 4,
-    enabled: !isAdmin,
+    enabled: !isAdmin && !isMobile,
   });
 
-  // Section 1 (Landing, index 0) uses the normal cursor.
+  // Custom cursor only on desktop sections 2–4.
   useEffect(() => {
-    if (isAdmin) return;
+    if (isAdmin || isMobile) return;
     document.documentElement.classList.toggle("custom-cursor", index !== 0);
-  }, [index, isAdmin]);
+  }, [index, isAdmin, isMobile]);
 
   if (isAdmin) {
     return <AdminPage />;
   }
 
-  const sections = [
-    <LandingSection key="landing" />,
-    // PhilosophySection handles its own touch isolation on mobile: it stops
-    // touch event propagation at the scroll container so the deck's window
-    // listeners never see swipes while the user is scrolling the section.
-    // When the user reaches the bottom, it calls onNext() directly.
-    <PhilosophySection key="philosophy" onNext={next} />,
-    <FauxSphereSection key="s3" />,
-    <FinaleSection key="s4" />,
-  ];
+  // ── Mobile: plain stacked vertical scroll ────────────────────────────────
+  if (isMobile) {
+    return (
+      <>
+        <Navbar />
+        <div>
+          {/* Each section fills at least the full viewport height */}
+          <div className="min-h-screen">
+            <LandingSection />
+          </div>
+          <div className="min-h-screen">
+            <PhilosophySection />
+          </div>
+          <div className="min-h-screen">
+            <FauxSphereSection />
+          </div>
+          <div className="min-h-screen">
+            <FinaleSection />
+          </div>
+        </div>
+      </>
+    );
+  }
 
+  // ── Desktop: full-page snap deck ──────────────────────────────────────────
   return (
     <>
-      {/* Navbar floats above every section. */}
       <Navbar />
-      <SectionDeck sections={sections} index={index} direction={direction} />
-      {/* No custom cursor on Section 1 (native cursor shows there). Leaf cursor
-          while the philosophy section (index 1) is active; dot elsewhere. */}
+      <SectionDeck sections={[
+        <LandingSection key="landing" />,
+        <PhilosophySection key="philosophy" onNext={next} />,
+        <FauxSphereSection key="s3" />,
+        <FinaleSection key="s4" />,
+      ]} index={index} direction={direction} />
       {index !== 0 && <CustomCursor mode={index === 1 ? "leaf" : "dot"} />}
     </>
   );
