@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Navbar } from "./components/Navbar";
 import { CustomCursor } from "./components/CustomCursor";
 import { SectionDeck } from "./components/SectionDeck";
@@ -13,13 +13,9 @@ function App() {
   // Route /admin to the admin dashboard; everything else is the main site.
   const isAdmin = window.location.pathname.startsWith("/admin");
 
-  // When PhilosophySection is in mobile-scroll mode, we disable the deck's
-  // wheel/touch navigation so the inner scroll container can receive events.
-  const [philosophyScrolling, setPhilosophyScrolling] = useState(false);
-
   const { index, direction, next } = useSectionNavigation({
     count: 4,
-    enabled: !isAdmin && !philosophyScrolling,
+    enabled: !isAdmin,
   });
 
   // Section 1 (Landing, index 0) uses the normal cursor.
@@ -34,12 +30,11 @@ function App() {
 
   const sections = [
     <LandingSection key="landing" />,
-    <PhilosophySection
-      key="philosophy"
-      onScrollStart={() => setPhilosophyScrolling(true)}
-      onScrollEnd={() => setPhilosophyScrolling(false)}
-      onNext={next}
-    />,
+    // PhilosophySection handles its own touch isolation on mobile: it stops
+    // touch event propagation at the scroll container so the deck's window
+    // listeners never see swipes while the user is scrolling the section.
+    // When the user reaches the bottom, it calls onNext() directly.
+    <PhilosophySection key="philosophy" onNext={next} />,
     <FauxSphereSection key="s3" />,
     <FinaleSection key="s4" />,
   ];

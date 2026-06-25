@@ -20,11 +20,7 @@ const PARAGRAPHS = [
 ];
 
 interface PhilosophySectionProps {
-  /** Called when the inner scroll container starts receiving scroll events (mobile). */
-  onScrollStart?: () => void;
-  /** Called when the inner scroll container is back at rest (mobile). */
-  onScrollEnd?: () => void;
-  /** Called when the user scrolls past the bottom — advance to next section. */
+  /** Called when the user scrolls to the very bottom — advance to next section. */
   onNext?: () => void;
 }
 
@@ -35,9 +31,13 @@ interface PhilosophySectionProps {
  * Desktop: fixed two-column layout, centred vertically, no inner scroll.
  * Mobile: content starts at 20% VPH, scrolls within the section, top/bottom
  *         fade masks, and advances to the next section when the user reaches
- *         the bottom.
+ *         the bottom of the content.
+ *
+ * Touch events on the scroll container are stopped from bubbling to the
+ * window so the deck's global touchend handler never sees them — preventing
+ * an immediate jump to Section 3 on the first swipe.
  */
-export function PhilosophySection({ onScrollStart, onScrollEnd, onNext }: PhilosophySectionProps) {
+export function PhilosophySection({ onNext }: PhilosophySectionProps) {
   const reduceMotion = useReducedMotion();
 
   // Disable LeafField rAF loop on mobile.
@@ -65,7 +65,11 @@ export function PhilosophySection({ onScrollStart, onScrollEnd, onNext }: Philos
       opacity: 1,
       y: 0,
       filter: "blur(0px)",
-      transition: { duration: reduceMotion ? 0 : 0.7, ease: EASE_OUT, delay: reduceMotion ? 0 : delay },
+      transition: {
+        duration: reduceMotion ? 0 : 0.7,
+        ease: EASE_OUT,
+        delay: reduceMotion ? 0 : delay,
+      },
     }),
   };
 
@@ -78,36 +82,62 @@ export function PhilosophySection({ onScrollStart, onScrollEnd, onNext }: Philos
 
   // ── Mobile scroll logic ───────────────────────────────────────────────────
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Track whether we're already in the "overscroll → next" cooldown.
+  // Prevent firing onNext more than once per visit to the section.
   const nextFiredRef = useRef(false);
 
+  // Reset state whenever the section becomes active (re-mounts).
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    nextFiredRef.current = false;
+  }, []);
+
+  // Attach touch listeners directly on the scroll container (not via React
+  // synthetic events) so we can call stopPropagation before the deck's window
+  // listeners see the event. This is the key fix: the deck registers its
+  // touchstart/touchend on `window`, so stopping propagation at the container
+  // element prevents the deck from ever seeing the gesture.
+  useEffect(() => {
+    if (!isMobile) return;
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const stopProp = (e: TouchEvent) => {
+      e.stopPropagation();
+    };
+
+    // touchstart + touchend stopPropagation blocks the deck's window listeners.
+    el.addEventListener("touchstart", stopProp, { passive: true });
+    el.addEventListener("touchend", stopProp, { passive: true });
+    el.addEventListener("touchmove", stopProp, { passive: true });
+
+    return () => {
+      el.removeEventListener("touchstart", stopProp);
+      el.removeEventListener("touchend", stopProp);
+      el.removeEventListener("touchmove", stopProp);
+    };
+  }, [isMobile]);
+
+  // Detect reaching the bottom and fire onNext.
   useEffect(() => {
     if (!isMobile) return;
     const el = scrollRef.current;
     if (!el) return;
 
     const handleScroll = () => {
-      onScrollStart?.();
-
-      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 4;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 8;
       if (atBottom && !nextFiredRef.current) {
         nextFiredRef.current = true;
-        onScrollEnd?.();
         onNext?.();
-        // Reset after a short delay so re-entering the section works.
-        setTimeout(() => { nextFiredRef.current = false; }, 1200);
+        // Allow re-triggering if the user navigates back.
+        setTimeout(() => {
+          nextFiredRef.current = false;
+        }, 1500);
       }
     };
 
     el.addEventListener("scroll", handleScroll, { passive: true });
     return () => el.removeEventListener("scroll", handleScroll);
-  }, [isMobile, onScrollStart, onScrollEnd, onNext]);
-
-  // Reset scroll position when the section re-mounts (user navigates back).
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-    nextFiredRef.current = false;
-  }, []);
+  }, [isMobile, onNext]);
 
   // ── Shared content ────────────────────────────────────────────────────────
   const content = (
@@ -171,7 +201,7 @@ export function PhilosophySection({ onScrollStart, onScrollEnd, onNext }: Philos
       {isMobile ? (
         // ── Mobile: scrollable container starting at 20% VPH ──────────────
         <div className="absolute inset-0 z-30 pointer-events-none">
-          {/* The actual scroll container */}
+          {/* Scroll container — touch events stop here, never reach the deck */}
           <div
             ref={scrollRef}
             className="absolute inset-0 overflow-y-auto pointer-events-auto"
@@ -179,12 +209,12 @@ export function PhilosophySection({ onScrollStart, onScrollEnd, onNext }: Philos
           >
             {/* 20% VPH top spacer so content starts below the fold */}
             <div style={{ height: "20vh" }} aria-hidden />
-            <div className="px-6 pb-16">
+            <div className="px-6 pb-20">
               {content}
             </div>
           </div>
 
-          {/* Top fade — fades content that scrolls under the top edge */}
+          {/* Top fade — covers content scrolling under the top edge */}
           <div
             aria-hidden
             className="pointer-events-none absolute inset-x-0 top-0 z-10"
@@ -195,7 +225,7 @@ export function PhilosophySection({ onScrollStart, onScrollEnd, onNext }: Philos
             }}
           />
 
-          {/* Bottom fade — fades content approaching the bottom edge */}
+          {/* Bottom fade — covers content approaching the bottom edge */}
           <div
             aria-hidden
             className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
