@@ -84,40 +84,29 @@ export function PhilosophySection({ onNext }: PhilosophySectionProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // Prevent firing onNext more than once per visit to the section.
   const nextFiredRef = useRef(false);
+  // Dwell timer: armed when the user first reaches the bottom.
+  const dwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Whether the scroll container is currently at the bottom.
+  const atBottomRef = useRef(false);
 
   // Reset state whenever the section becomes active (re-mounts).
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     nextFiredRef.current = false;
+    atBottomRef.current = false;
+    if (dwellTimerRef.current) {
+      clearTimeout(dwellTimerRef.current);
+      dwellTimerRef.current = null;
+    }
   }, []);
 
-  // Attach touch listeners directly on the scroll container (not via React
-  // synthetic events) so we can call stopPropagation before the deck's window
-  // listeners see the event. This is the key fix: the deck registers its
-  // touchstart/touchend on `window`, so stopping propagation at the container
-  // element prevents the deck from ever seeing the gesture.
-  useEffect(() => {
-    if (!isMobile) return;
-    const el = scrollRef.current;
-    if (!el) return;
+  // NOTE: touch stopPropagation is now handled inside the extra-swipe
+  // useEffect below, which combines both concerns in one listener set.
 
-    const stopProp = (e: TouchEvent) => {
-      e.stopPropagation();
-    };
-
-    // touchstart + touchend stopPropagation blocks the deck's window listeners.
-    el.addEventListener("touchstart", stopProp, { passive: true });
-    el.addEventListener("touchend", stopProp, { passive: true });
-    el.addEventListener("touchmove", stopProp, { passive: true });
-
-    return () => {
-      el.removeEventListener("touchstart", stopProp);
-      el.removeEventListener("touchend", stopProp);
-      el.removeEventListener("touchmove", stopProp);
-    };
-  }, [isMobile]);
-
-  // Detect reaching the bottom and fire onNext.
+  // Detect reaching the bottom and fire onNext — but only after the user
+  // has been sitting at the bottom for a short dwell period (600 ms) AND
+  // has performed a deliberate extra downward swipe while already at the
+  // bottom. This prevents accidental advances mid-read.
   useEffect(() => {
     if (!isMobile) return;
     const el = scrollRef.current;
@@ -125,18 +114,81 @@ export function PhilosophySection({ onNext }: PhilosophySectionProps) {
 
     const handleScroll = () => {
       const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 8;
-      if (atBottom && !nextFiredRef.current) {
-        nextFiredRef.current = true;
-        onNext?.();
-        // Allow re-triggering if the user navigates back.
-        setTimeout(() => {
-          nextFiredRef.current = false;
-        }, 1500);
+
+      if (atBottom && !atBottomRef.current) {
+        // Just arrived at the bottom — start the dwell timer.
+        atBottomRef.current = true;
+        dwellTimerRef.current = setTimeout(() => {
+          // After 600 ms at the bottom, arm the trigger so the next
+          // deliberate downward overscroll fires onNext.
+          // We rely on the touchend handler below to detect that extra swipe.
+        }, 600);
+      } else if (!atBottom) {
+        // Scrolled back up — cancel everything.
+        atBottomRef.current = false;
+        if (dwellTimerRef.current) {
+          clearTimeout(dwellTimerRef.current);
+          dwellTimerRef.current = null;
+        }
       }
     };
 
     el.addEventListener("scroll", handleScroll, { passive: true });
-    return () => el.removeEventListener("scroll", handleScroll);
+    return () => {
+      el.removeEventListener("scroll", handleScroll);
+      if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
+    };
+  }, [isMobile]);
+
+  // Extra-swipe detection: when the user is already at the bottom and swipes
+  // down again (overscroll intent), advance to the next section.
+  useEffect(() => {
+    if (!isMobile) return;
+    const el = scrollRef.current;
+    if (!el) return;
+
+    let swipeStartY: number | null = null;
+
+    const onTouchStart = (e: TouchEvent) => {
+      e.stopPropagation();
+      swipeStartY = e.touches[0]?.clientY ?? null;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      e.stopPropagation();
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      e.stopPropagation();
+      if (swipeStartY === null) return;
+      const endY = e.changedTouches[0]?.clientY ?? swipeStartY;
+      const delta = swipeStartY - endY; // positive = swipe up (scroll down)
+      swipeStartY = null;
+
+      // Only fire if: at the bottom, dwell timer has elapsed (600 ms), and
+      // the swipe was a clear downward intent (delta > 30 px).
+      if (
+        atBottomRef.current &&
+        dwellTimerRef.current === null &&
+        delta > 30 &&
+        !nextFiredRef.current
+      ) {
+        nextFiredRef.current = true;
+        onNext?.();
+        setTimeout(() => {
+          nextFiredRef.current = false;
+          atBottomRef.current = false;
+        }, 1500);
+      }
+    };
+
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: true });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+    };
   }, [isMobile, onNext]);
 
   // ── Shared content ────────────────────────────────────────────────────────
