@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
 
 interface CenterBlobProps {
@@ -44,19 +44,23 @@ interface ActiveRipple {
 /**
  * A soft, multi-colour bubble parked in the centre of the section. The base
  * shape is one <circle> filled with a five-stop radial gradient (deep purple
- * → blue → turquoise → transparent). A turbulence + displacement filter
- * warps its edges; a JS-driven `<feOffset>` scrolls the noise sample point
- * each frame, so the same noise pattern morphs continuously — different
- * parts of the edge slowly bulge out and contract in.
- *
- * Clicking anywhere over the section pulses the bubble (brief scale-up)
- * and emits a single multi-colour ring from the centre that grows outward
- * and fades. The same ring also spawns ambiently on a random interval
- * (AMBIENT_INTERVAL_MS) so the scene breathes without input. All effects
- * piggy-back on the same rAF loop that drives the wobble.
+ * → blue → turquoise → transparent). On desktop, a turbulence + displacement
+ * filter warps its edges and ambient ripple rings expand outward. On mobile,
+ * both the wobble filter and ripples are disabled to avoid GPU/rAF lag.
  */
 export function CenterBlob({ className }: CenterBlobProps) {
   const reduceMotion = useReducedMotion();
+
+  // Disable the expensive wobble filter and ripples on mobile (< 768px).
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
   const svgRef = useRef<SVGSVGElement>(null);
   const offsetRef = useRef<SVGFEOffsetElement>(null);
   const pulseGroupRef = useRef<SVGGElement>(null);
@@ -67,14 +71,9 @@ export function CenterBlob({ className }: CenterBlobProps) {
   /** Live ripples sorted oldest → newest. */
   const ripplesRef = useRef<ActiveRipple[]>([]);
 
-  // Clicks no longer trigger a pulse/ripple here — that responsibility moved
-  // to LeafField (clicks now spawn a leaf at the cursor). Ambient ripples
-  // continue to fire from the ambient timer below.
-
-
-  // --- Ambient ripples — spontaneous rings on a random interval ----------
+  // --- Ambient ripples — desktop only, spontaneous rings on a random interval
   useEffect(() => {
-    if (reduceMotion) return;
+    if (reduceMotion || isMobile) return;
     let timer: ReturnType<typeof setTimeout>;
     const [lo, hi] = AMBIENT_INTERVAL_MS;
     const schedule = () => {
@@ -88,13 +87,32 @@ export function CenterBlob({ className }: CenterBlobProps) {
     };
     schedule();
     return () => clearTimeout(timer);
-  }, [reduceMotion]);
+  }, [reduceMotion, isMobile]);
 
-  // --- rAF loop: wobble + pulse + ripples --------------------------------
+  // --- rAF loop: wobble + pulse + ripples (desktop) OR entrance only (mobile)
   useEffect(() => {
     if (reduceMotion) return;
     let raf = 0;
     const start = performance.now();
+
+    if (isMobile) {
+      // On mobile: just run the entrance animation, then stop the loop.
+      const step = (now: number) => {
+        const c = circleRef.current;
+        if (c) {
+          const enterT = Math.min(1, (now - start) / ENTER_DURATION_MS);
+          const enterScale = 1 - Math.pow(1 - enterT, 3);
+          c.setAttribute("r", String(enterScale * RADIUS));
+          if (enterT < 1) {
+            raf = requestAnimationFrame(step);
+          }
+        }
+      };
+      raf = requestAnimationFrame(step);
+      return () => cancelAnimationFrame(raf);
+    }
+
+    // Desktop: full wobble + pulse + ripple loop.
     const step = (now: number) => {
       raf = requestAnimationFrame(step);
 
@@ -107,9 +125,7 @@ export function CenterBlob({ className }: CenterBlobProps) {
       }
 
       // 2. Entrance — animate the circle's actual `r` from 0 to RADIUS via
-      // ease-out-cubic. Driving the SVG attribute (not a CSS scale) means
-      // r=0 renders literally nothing on the first frame; CSS scale(0) on
-      // the wobble-filtered group wasn't reliably collapsing the output.
+      // ease-out-cubic.
       const c = circleRef.current;
       if (c) {
         const enterT = Math.min(1, (now - start) / ENTER_DURATION_MS);
@@ -117,8 +133,7 @@ export function CenterBlob({ className }: CenterBlobProps) {
         c.setAttribute("r", String(enterScale * RADIUS));
       }
 
-      // 3. Pulse — smooth ease-in-out via sin(π·t). Applied as a CSS scale
-      // on the wrapping group so it stacks on top of the entrance growth.
+      // 3. Pulse — smooth ease-in-out via sin(π·t).
       const pg = pulseGroupRef.current;
       if (pg) {
         let pulseScale = 1;
@@ -138,8 +153,6 @@ export function CenterBlob({ className }: CenterBlobProps) {
       const rg = ripplesGroupRef.current;
       if (rg) {
         const live = ripplesRef.current;
-        // Compute max radius from the actual SVG bounds — guarantees each
-        // ring reaches the section's corners before its lifetime ends.
         const svg = svgRef.current;
         let maxR = RADIUS + 200;
         if (svg) {
@@ -147,25 +160,18 @@ export function CenterBlob({ className }: CenterBlobProps) {
           maxR = Math.hypot(r.width, r.height) / 2;
         }
 
-        // Drop expired entries.
         for (let i = live.length - 1; i >= 0; i--) {
           if (now - live[i].birth > RIPPLE_DURATION_MS) {
             live.splice(i, 1);
           }
         }
-        // Pre-delay entries (age < 0) stay in the array but don't paint yet —
-        // visible count is the subset with age in [0, duration].
         let visibleCount = 0;
         for (const e of live) {
           if (now - e.birth >= 0) visibleCount++;
         }
 
-        // Grow / shrink the pool of <circle> children to match visibleCount.
         while (rg.childElementCount < visibleCount) {
-          const c = document.createElementNS(
-            "http://www.w3.org/2000/svg",
-            "circle",
-          );
+          const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
           c.setAttribute("cx", "50%");
           c.setAttribute("cy", "50%");
           c.setAttribute("fill", "none");
@@ -176,8 +182,6 @@ export function CenterBlob({ className }: CenterBlobProps) {
           rg.removeChild(rg.lastElementChild!);
         }
 
-        // Write attributes for each visible ripple. ease-out-quad on the
-        // radius — fast push, slow decay near the end.
         let idx = 0;
         for (const e of live) {
           const age = now - e.birth;
@@ -186,9 +190,7 @@ export function CenterBlob({ className }: CenterBlobProps) {
           const eased = 1 - (1 - pt) * (1 - pt);
           const r = RIPPLE_START_R + (maxR - RIPPLE_START_R) * eased;
           const opacity = RIPPLE_START_OPACITY * (1 - pt);
-          const strokeW =
-            RIPPLE_START_STROKE_W -
-            (RIPPLE_START_STROKE_W - RIPPLE_END_STROKE_W) * pt;
+          const strokeW = RIPPLE_START_STROKE_W - (RIPPLE_START_STROKE_W - RIPPLE_END_STROKE_W) * pt;
           const c = rg.children[idx] as SVGCircleElement;
           c.setAttribute("r", String(r));
           c.setAttribute("opacity", String(opacity));
@@ -199,7 +201,7 @@ export function CenterBlob({ className }: CenterBlobProps) {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [reduceMotion]);
+  }, [reduceMotion, isMobile]);
 
   return (
     <svg
@@ -209,11 +211,6 @@ export function CenterBlob({ className }: CenterBlobProps) {
       style={{ width: "100%", height: "100%" }}
     >
       <defs>
-        {/*
-          Soft, low-opacity gradient — toned roughly half as vibrant as the
-          previous cursor-trail palette. Five stops give the smooth purple →
-          blue → turquoise falloff before reaching transparent at the rim.
-        */}
         <radialGradient id="centerBlobGrad">
           <stop offset="0%" stopColor="#2c3ee0" stopOpacity="0.5" />
           <stop offset="22%" stopColor="#6a90e8" stopOpacity="0.4" />
@@ -221,91 +218,50 @@ export function CenterBlob({ className }: CenterBlobProps) {
           <stop offset="80%" stopColor="#a5d5e3" stopOpacity="0.1" />
           <stop offset="100%" stopColor="#d2e7ee" stopOpacity="0" />
         </radialGradient>
-        {/*
-          Ring stroke — diagonal purple → blue → turquoise band matching the
-          blob palette. Used by every ripple emitted on click.
-        */}
         <linearGradient id="rippleStroke" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#2a17a8" />
           <stop offset="50%" stopColor="#4d59ff" />
           <stop offset="100%" stopColor="#9ee9ff" />
         </linearGradient>
-        {/*
-          Wobble filter. feTurbulence makes a static fractal-noise field;
-          feOffset is animated per-frame (via the ref) to scroll that field;
-          feDisplacementMap reads the (now-shifting) noise and warps the
-          circle's pixels by it. Filter region is expanded so the warped
-          edges don't get clipped at the source bounding box.
-        */}
-        <filter
-          id="blobWobble"
-          x="-50%"
-          y="-50%"
-          width="200%"
-          height="200%"
-        >
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.008"
-            numOctaves="2"
-            result="noise"
-          />
-          <feOffset
-            ref={offsetRef}
-            in="noise"
-            dx="0"
-            dy="0"
-            result="shiftedNoise"
-          />
-          <feDisplacementMap
-            in="SourceGraphic"
-            in2="shiftedNoise"
-            scale={DISPLACE_SCALE}
-            xChannelSelector="R"
-            yChannelSelector="G"
-          />
-        </filter>
-        {/*
-          Ripple-ring blur. Soft gaussian on the ripples group so the
-          expanding rings read as glowing bands rather than crisp circles.
-          Expanded region so the blur halo isn't clipped at the source bbox.
-        */}
-        <filter
-          id="rippleBlur"
-          x="-20%"
-          y="-20%"
-          width="140%"
-          height="140%"
-        >
+        {/* Wobble filter — only applied on desktop */}
+        {!isMobile && (
+          <filter id="blobWobble" x="-50%" y="-50%" width="200%" height="200%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.008"
+              numOctaves="2"
+              result="noise"
+            />
+            <feOffset ref={offsetRef} in="noise" dx="0" dy="0" result="shiftedNoise" />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="shiftedNoise"
+              scale={DISPLACE_SCALE}
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        )}
+        <filter id="rippleBlur" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="6" />
         </filter>
       </defs>
-      {/*
-        Pulse wrapper — CSS scale runs on this group so the filtered circle
-        is uniformly scaled about its own visual centre. transform-box +
-        transform-origin pin the origin to the circle's bounding box.
-      */}
       <g
         ref={pulseGroupRef}
-        style={{
-          transformBox: "fill-box",
-          transformOrigin: "50% 50%",
-        }}
+        style={{ transformBox: "fill-box", transformOrigin: "50% 50%" }}
       >
         <circle
           ref={circleRef}
           cx="50%"
           cy="50%"
-          // r is driven by the rAF entrance envelope (0 → RADIUS). Reduced
-          // motion users skip the loop, so render at full size immediately.
           r={reduceMotion ? RADIUS : 0}
           fill="url(#centerBlobGrad)"
-          filter="url(#blobWobble)"
+          // Only apply the expensive wobble filter on desktop
+          filter={isMobile ? undefined : "url(#blobWobble)"}
         />
       </g>
-      {/* Expanding rings — siblings of the pulse group; gaussian-blurred so
-          they read as glowing bands. */}
-      <g ref={ripplesGroupRef} filter="url(#rippleBlur)" />
+      {/* Ripple rings — desktop only */}
+      {!isMobile && <g ref={ripplesGroupRef} filter="url(#rippleBlur)" />}
     </svg>
   );
 }

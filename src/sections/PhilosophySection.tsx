@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion, type Transition, type Variants } from "motion/react";
 import { CenterBlob } from "../components/CenterBlob";
 import { LeafField } from "../components/LeafField";
@@ -19,25 +19,28 @@ const PARAGRAPHS = [
   "We believe there is a better way. That is, hiring based on what people can do, not how well they can navigate the system. So we built Rill to connect candidates directly with hiring managers and leave resumes out of the process.",
 ];
 
+interface PhilosophySectionProps {
+  /** Called when the inner scroll container starts receiving scroll events (mobile). */
+  onScrollStart?: () => void;
+  /** Called when the inner scroll container is back at rest (mobile). */
+  onScrollEnd?: () => void;
+  /** Called when the user scrolls past the bottom — advance to next section. */
+  onNext?: () => void;
+}
+
 /**
  * Section 2 — a soft, low-opacity multi-colour bubble pinned to the centre
  * of the section, viewed through a fractal-glass strip overlay.
  *
- * Layers, back to front:
- *   z-0  cream base (#fbfaf7, matches LandingSection)
- *   z-[5] LeafField — small green ellipses drift in from the section edges.
- *        Listens for `centerblob-ripple` and gets pushed outward by it.
- *   z-10 CenterBlob — purple/blue/turquoise radial gradient with edges
- *        wobbled by an animated SVG displacement filter (parts of the rim
- *        slowly bulge out and contract in, like an AI-orb).
- *   z-20 Fractal-glass strips — per-strip backdrop blur.
- *   z-30 Centered text (OUR PHILOSOPHY / headline / body).
+ * Desktop: fixed two-column layout, centred vertically, no inner scroll.
+ * Mobile: content starts at 20% VPH, scrolls within the section, top/bottom
+ *         fade masks, and advances to the next section when the user reaches
+ *         the bottom.
  */
-export function PhilosophySection() {
+export function PhilosophySection({ onScrollStart, onScrollEnd, onNext }: PhilosophySectionProps) {
   const reduceMotion = useReducedMotion();
 
-  // The drifting background letters (LeafField) run a per-frame rAF loop that
-  // tanks performance on phones, so we skip that layer below `md` (768px).
+  // Disable LeafField rAF loop on mobile.
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -47,9 +50,7 @@ export function PhilosophySection() {
     return () => mq.removeEventListener("change", update);
   }, []);
 
-  // Post-mount state flip so the text entrance plays on every re-entry — the
-  // deck's <AnimatePresence> suppresses nested mount animations, but a plain
-  // `animate` prop change isn't subject to that. Same pattern as LandingSection.
+  // Post-mount state flip so the text entrance plays on every re-entry.
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setShown(true));
@@ -57,10 +58,6 @@ export function PhilosophySection() {
   }, []);
   const animateState = shown || reduceMotion ? "show" : "hidden";
 
-  // The items live inside the two column <div>s, so Motion's staggerChildren
-  // (which only times *direct* motion children) can't sequence them. Instead
-  // each item carries its own delay via `custom`, so we can order them across
-  // columns: label → headline → paragraphs (the longer text comes in last).
   const textGroup: Variants = { hidden: {}, show: {} };
   const textItem: Variants = {
     hidden: { opacity: 0, y: 12, filter: "blur(8px)" },
@@ -72,90 +69,149 @@ export function PhilosophySection() {
     }),
   };
 
-  // Entrance schedule (seconds). The body paragraphs start after the headline
-  // and stagger gently among themselves.
   const D_LABEL = 0;
   const D_HEADLINE = 0.35;
   const D_BODY = 0.8;
   const D_BODY_STAGGER = 0.18;
 
-  // <Strips /> is intentionally disabled (see below) but kept for easy
-  // re-enable; reference it so noUnusedLocals doesn't trip the build.
   void Strips;
+
+  // ── Mobile scroll logic ───────────────────────────────────────────────────
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Track whether we're already in the "overscroll → next" cooldown.
+  const nextFiredRef = useRef(false);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      onScrollStart?.();
+
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 4;
+      if (atBottom && !nextFiredRef.current) {
+        nextFiredRef.current = true;
+        onScrollEnd?.();
+        onNext?.();
+        // Reset after a short delay so re-entering the section works.
+        setTimeout(() => { nextFiredRef.current = false; }, 1200);
+      }
+    };
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [isMobile, onScrollStart, onScrollEnd, onNext]);
+
+  // Reset scroll position when the section re-mounts (user navigates back).
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    nextFiredRef.current = false;
+  }, []);
+
+  // ── Shared content ────────────────────────────────────────────────────────
+  const content = (
+    <motion.div
+      variants={textGroup}
+      initial={reduceMotion ? false : "hidden"}
+      animate={animateState}
+      className="grid w-full max-w-5xl grid-cols-1 gap-x-16 gap-y-10 md:grid-cols-2"
+    >
+      {/* Left — section label + headline */}
+      <div>
+        <motion.p
+          variants={textItem}
+          custom={D_LABEL}
+          className="font-heading text-xs font-medium tracking-[0.3em] text-brand-700"
+          style={{ textShadow: "0 1px 12px rgba(255, 255, 255, 0.65)" }}
+        >
+          OUR PHILOSOPHY
+        </motion.p>
+        <motion.h2
+          variants={textItem}
+          custom={D_HEADLINE}
+          className="mt-6 max-w-md font-title text-3xl leading-snug text-brand-900 sm:text-4xl"
+          style={{ textShadow: "0 2px 20px rgba(255, 255, 255, 0.55)" }}
+        >
+          <LetterCascade
+            text={HEADLINE}
+            triggerOnEvent="centerblob-ripple"
+            waveSpeed={900}
+          />
+        </motion.h2>
+      </div>
+
+      {/* Right — body paragraphs */}
+      <div className="max-w-md space-y-5">
+        {PARAGRAPHS.map((para, i) => (
+          <motion.p
+            key={i}
+            variants={textItem}
+            custom={D_BODY + i * D_BODY_STAGGER}
+            className="font-body text-[15px] leading-relaxed text-ink"
+            style={{ textShadow: "0 1px 10px rgba(255, 255, 255, 0.55)" }}
+          >
+            {para}
+          </motion.p>
+        ))}
+      </div>
+    </motion.div>
+  );
 
   return (
     <section className="relative h-full w-full overflow-hidden bg-[#fbfaf7]">
-      {/* Drifting background letters — spawn off the edges, float inward. The
-          centre-blob's ripple events nudge them outward radially. Skipped on
-          mobile: the per-frame rAF loop drags performance on phones. */}
+      {/* Drifting background letters — desktop only. */}
       {!isMobile && <LeafField className="absolute inset-0 z-[5]" />}
 
-      {/* Centred wobbly bubble — purple/blue/turquoise radial gradient with
-          a self-contained turbulence + displacement filter that morphs the
-          edge each frame. No cursor input. */}
+      {/* Centre blob — wobble + ripples disabled on mobile (see CenterBlob). */}
       <CenterBlob className="absolute inset-0 z-10" />
 
-      {/* Fractal-glass strip overlay — TEMPORARILY DISABLED to preview the
-          letters without frosting. Re-enable by uncommenting <Strips />.
-          Width curve from the CodePen makes edges narrower than the center;
-          factors are normalized so they sum to exactly the full section
-          width (the raw factors only cover ~89%, leaving a bare gap). */}
-      {/* <Strips /> */}
+      {/* <Strips /> — temporarily disabled */}
 
-      {/* Two-column copy — label + headline on the left, body paragraphs on
-          the right. Stacks to a single column on small screens. This is the
-          only thing in the a11y tree. */}
-      <motion.div
-        variants={textGroup}
-        initial={reduceMotion ? false : "hidden"}
-        animate={animateState}
-        className="absolute inset-0 z-30 flex items-center justify-center px-[8vw]"
-      >
-        <div className="grid w-full max-w-5xl grid-cols-1 gap-x-16 gap-y-10 md:grid-cols-2">
-          {/* Left — section label + headline */}
-          <div>
-            <motion.p
-              variants={textItem}
-              custom={D_LABEL}
-              className="font-heading text-xs font-medium tracking-[0.3em] text-brand-700"
-              style={{ textShadow: "0 1px 12px rgba(255, 255, 255, 0.65)" }}
-            >
-              OUR PHILOSOPHY
-            </motion.p>
-            <motion.h2
-              variants={textItem}
-              custom={D_HEADLINE}
-              className="mt-6 max-w-md font-title text-3xl leading-snug text-brand-900 sm:text-4xl"
-              style={{ textShadow: "0 2px 20px rgba(255, 255, 255, 0.55)" }}
-            >
-              {/* Each ambient ripple from CenterBlob fires `centerblob-ripple`
-                  carrying the ring's origin; the headline cascades outward from
-                  that point — letters nearest the ripple flip first — so the
-                  ring appears to pass through the text. */}
-              <LetterCascade
-                text={HEADLINE}
-                triggerOnEvent="centerblob-ripple"
-                waveSpeed={900}
-              />
-            </motion.h2>
+      {isMobile ? (
+        // ── Mobile: scrollable container starting at 20% VPH ──────────────
+        <div className="absolute inset-0 z-30 pointer-events-none">
+          {/* The actual scroll container */}
+          <div
+            ref={scrollRef}
+            className="absolute inset-0 overflow-y-auto pointer-events-auto"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
+            {/* 20% VPH top spacer so content starts below the fold */}
+            <div style={{ height: "20vh" }} aria-hidden />
+            <div className="px-6 pb-16">
+              {content}
+            </div>
           </div>
 
-          {/* Right — body paragraphs */}
-          <div className="max-w-md space-y-5">
-            {PARAGRAPHS.map((para, i) => (
-              <motion.p
-                key={i}
-                variants={textItem}
-                custom={D_BODY + i * D_BODY_STAGGER}
-                className="font-body text-[15px] leading-relaxed text-ink"
-                style={{ textShadow: "0 1px 10px rgba(255, 255, 255, 0.55)" }}
-              >
-                {para}
-              </motion.p>
-            ))}
-          </div>
+          {/* Top fade — fades content that scrolls under the top edge */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 z-10"
+            style={{
+              height: "22vh",
+              background:
+                "linear-gradient(to bottom, #fbfaf7 40%, transparent 100%)",
+            }}
+          />
+
+          {/* Bottom fade — fades content approaching the bottom edge */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
+            style={{
+              height: "14vh",
+              background:
+                "linear-gradient(to top, #fbfaf7 30%, transparent 100%)",
+            }}
+          />
         </div>
-      </motion.div>
+      ) : (
+        // ── Desktop: original centred absolute layout ─────────────────────
+        <div className="absolute inset-0 z-30 flex items-center justify-center px-[8vw]">
+          {content}
+        </div>
+      )}
     </section>
   );
 }
@@ -178,14 +234,11 @@ function Strips() {
             className="relative h-full overflow-hidden"
             style={{
               width: `${cellWidth}%`,
-              // Heavy frosted-glass blur on whatever sits behind (the blobs).
-              // Per-strip so each glass shard reads as its own pane.
               backdropFilter: "blur(8px) saturate(140%)",
               WebkitBackdropFilter: "blur(8px) saturate(140%)",
               backgroundColor: "rgba(255,255,255,0.05)",
             }}
           >
-            {/* Right-edge shimmer — glass-shard highlight. */}
             <span
               aria-hidden
               className="pointer-events-none absolute inset-0"
