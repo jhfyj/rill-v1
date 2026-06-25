@@ -82,7 +82,7 @@ export function FinaleSection() {
   // ── Mobile: plain block layout ───────────────────────────────────────────
   if (isMobile) {
     return (
-      <section className="relative w-full overflow-hidden bg-[#fbfaf7] flex flex-col px-6 py-24">
+      <section className="relative w-full h-full overflow-hidden bg-[#fbfaf7] flex flex-col items-start justify-center px-6 py-16">
         <GradientFlow className="absolute inset-0 z-0" />
         <motion.div
           variants={group}

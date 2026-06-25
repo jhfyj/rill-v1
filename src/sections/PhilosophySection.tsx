@@ -132,9 +132,9 @@ export function PhilosophySection({ onNext: _onNext }: PhilosophySectionProps) {
   // ── Mobile: plain block layout in the page flow ───────────────────────────
   if (isMobile) {
     return (
-      <section className="relative w-full overflow-hidden bg-[#fbfaf7] py-20 px-6">
+      <section className="relative w-full h-full overflow-hidden bg-[#fbfaf7] flex flex-col items-start justify-center px-6">
         <CenterBlob className="absolute inset-0 z-10 pointer-events-none" />
-        <div className="relative z-20 pt-10">
+        <div className="relative z-20">
           {content}
         </div>
       </section>

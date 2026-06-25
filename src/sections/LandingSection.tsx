@@ -94,7 +94,7 @@ export function LandingSection() {
   // ── Mobile: plain block layout ───────────────────────────────────────────
   if (isMobile) {
     return (
-      <section className="relative w-full bg-[#fbfaf7] flex flex-col items-center justify-center px-6 py-24">
+      <section className="relative w-full h-full bg-[#fbfaf7] flex flex-col items-center justify-center px-6">
         <RippleField
           startDelayMs={rippleDelayMs}
           className="pointer-events-none absolute inset-0 z-10"

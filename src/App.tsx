@@ -41,23 +41,23 @@ function App() {
     return <AdminPage />;
   }
 
-  // ── Mobile: plain stacked vertical scroll ────────────────────────────────
+  // ── Mobile: each section is exactly 100svh, page scrolls vertically ─────
   if (isMobile) {
     return (
       <>
         <Navbar />
-        <div>
-          {/* Each section fills at least the full viewport height */}
-          <div className="min-h-screen">
+        {/* No extra padding/margin — each section is self-contained at 100svh */}
+        <div style={{ lineHeight: 0 }}>
+          <div style={{ height: "100svh", overflow: "hidden" }}>
             <LandingSection />
           </div>
-          <div className="min-h-screen">
+          <div style={{ height: "100svh", overflow: "hidden" }}>
             <PhilosophySection />
           </div>
-          <div className="min-h-screen">
+          <div style={{ height: "100svh", overflow: "hidden" }}>
             <FauxSphereSection />
           </div>
-          <div className="min-h-screen">
+          <div style={{ height: "100svh", overflow: "hidden" }}>
             <FinaleSection />
           </div>
         </div>

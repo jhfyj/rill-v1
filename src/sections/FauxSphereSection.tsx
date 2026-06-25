@@ -106,11 +106,9 @@ export function FauxSphereSection() {
   // ── Mobile: sphere fills the screen height, card taps open full-screen panel ──
   if (isMobile) {
     return (
-      <section className="relative w-full bg-[#fbfaf7]">
-        {/* Sphere fills the viewport height on mobile */}
+      <section className="relative w-full h-full bg-[#fbfaf7]">
         <div
-          className="relative w-full overflow-hidden"
-          style={{ height: "100svh" }}
+          className="relative w-full h-full overflow-hidden"
           onClick={() => setPanelOpen(false)}
         >
           <FauxSphere
