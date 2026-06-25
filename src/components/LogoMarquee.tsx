@@ -1,8 +1,27 @@
 import { useEffect, useRef } from "react";
 import { useReducedMotion } from "motion/react";
 
-/** Distinct logo placeholders per copy. */
-const LOGO_COUNT = 6;
+import aquin from "../assets/companyLogo/aquin.svg";
+import codedreams from "../assets/companyLogo/codedreams.svg";
+import geodo from "../assets/companyLogo/geodo.svg";
+import lookbook from "../assets/companyLogo/lookbook.svg";
+import mendria from "../assets/companyLogo/mendria.svg";
+import quirklabs from "../assets/companyLogo/quirklabs.svg";
+import presidio from "../assets/companyLogo/the_presidio_power_company.svg";
+
+/** One company logo set; rendered LOGO_COPIES times to fill the seamless loop. */
+const LOGOS = [
+  { src: aquin, alt: "Aquin" },
+  { src: codedreams, alt: "CodeDreams" },
+  { src: geodo, alt: "Geodo" },
+  { src: lookbook, alt: "Lookbook" },
+  { src: mendria, alt: "Mendria" },
+  { src: quirklabs, alt: "QuirkLabs" },
+  { src: presidio, alt: "The Presidio Power Company" },
+];
+
+/** Distinct logos per copy. */
+const LOGO_COUNT = LOGOS.length;
 /**
  * Copies of the logo set rendered in the track. The CSS keyframe
  * (logo-marquee in index.css) translates by 1 / LOGO_COPIES = 33.333% so the
@@ -104,7 +123,7 @@ export function LogoMarquee() {
       onMouseLeave={() => {
         pointerRef.current.active = false;
       }}
-      className="flex w-max items-end gap-10 sm:gap-16"
+      className="flex w-max items-end gap-6 sm:gap-10"
       style={{
         animation: reduceMotion
           ? undefined
@@ -112,14 +131,27 @@ export function LogoMarquee() {
         willChange: "transform",
       }}
     >
-      {Array.from({ length: TILE_TOTAL }).map((_, i) => (
-        <div
-          key={i}
-          aria-hidden
-          className="h-12 w-12 shrink-0 origin-bottom rounded-2xl border border-white/50 bg-brand-100/60 shadow-glass"
-          style={{ willChange: "transform" }}
-        />
-      ))}
+      {Array.from({ length: TILE_TOTAL }).map((_, i) => {
+        const logo = LOGOS[i % LOGO_COUNT];
+        // Duplicate copies are decorative; only the first set is announced.
+        const isFirstCopy = i < LOGO_COUNT;
+        return (
+          <img
+            key={i}
+            src={logo.src}
+            alt={isFirstCopy ? logo.alt : ""}
+            aria-hidden={isFirstCopy ? undefined : true}
+            draggable={false}
+            // Fixed box + object-contain → every logo fits the SAME footprint
+            // regardless of its native aspect ratio (reins in the wide ones).
+            // These are embedded PNGs, not vectors: grayscale+contrast strips
+            // color and crushes tones toward crisp black/white while KEEPING the
+            // internal line detail (brightness(0) would flatten them to a blob).
+            className="h-10 w-28 shrink-0 origin-bottom rounded object-contain"
+            style={{ willChange: "transform", filter: "grayscale(1) contrast(1.2)" }}
+          />
+        );
+      })}
     </div>
   );
 }
