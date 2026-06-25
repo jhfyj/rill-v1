@@ -206,31 +206,27 @@ export function CenterBlob({ className }: CenterBlobProps) {
     return () => cancelAnimationFrame(raf);
   }, [reduceMotion, isMobile]);
 
-  // ── Mobile render: plain gradient circle, zero filters, zero ripple DOM ──
+  // ── Mobile render: CSS radial-gradient <div> instead of SVG ────────────────
+  // iOS Safari renders SVG radial gradients in display-P3 wide color gamut,
+  // which shifts blues toward purple. CSS gradients are always sRGB-clamped,
+  // so this avoids the color space mismatch entirely.
   if (isMobile) {
     return (
-      <svg
+      <div
         aria-hidden
         className={className}
-        style={{ width: "100%", height: "100%" }}
-      >
-        <defs>
-          <radialGradient id="centerBlobGrad">
-            <stop offset="0%" stopColor="#2c3ee0" stopOpacity="0.5" />
-            <stop offset="22%" stopColor="#6a90e8" stopOpacity="0.4" />
-            <stop offset="52%" stopColor="#759cca" stopOpacity="0.24" />
-            <stop offset="80%" stopColor="#a5d5e3" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="#d2e7ee" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <circle
-          ref={circleRef}
-          cx="50%"
-          cy="50%"
-          r={reduceMotion ? RADIUS : 0}
-          fill="url(#centerBlobGrad)"
-        />
-      </svg>
+        style={{
+          width: "100%",
+          height: "100%",
+          background:
+            "radial-gradient(circle at 50% 50%, " +
+            "rgba(44,62,224,0.50) 0%, " +
+            "rgba(106,144,232,0.40) 22%, " +
+            "rgba(117,156,202,0.24) 52%, " +
+            "rgba(165,213,227,0.10) 80%, " +
+            "rgba(210,231,238,0.00) 100%)",
+        }}
+      />
     );
   }
 
