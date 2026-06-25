@@ -1,4 +1,5 @@
 import { useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
+import type { Company } from "../types/company";
 import { useReducedMotion } from "motion/react";
 import { CompanyCard } from "./CompanyCard";
 
@@ -6,11 +7,13 @@ interface FauxSphereProps {
   /** CSS class on the host container (e.g. absolute positioning + z-index). */
   className?: string;
   /** Called when a card is clicked (e.g. to open the detail panel). */
-  onCardClick?: () => void;
+  onCardClick?: (company: Company) => void;
   /** Freeze the rotation externally (e.g. while the detail panel is open). */
   frozen?: boolean;
   /** Fires when a card becomes active (hovered/locked), or when none is. */
   onActiveChange?: (active: boolean) => void;
+  /** Company data to display on the cards. When empty, placeholder defaults are used. */
+  companies?: Company[];
 }
 
 /* --- Geometry / feel -------------------------------------------------------- */
@@ -118,6 +121,7 @@ export function FauxSphere({
   onCardClick,
   frozen,
   onActiveChange,
+  companies = [],
 }: FauxSphereProps) {
   const reduceMotion = useReducedMotion();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -485,6 +489,9 @@ export function FauxSphere({
             }}
           >
             <CompanyCard
+              {...(companies.length > 0
+                ? companies[idx % companies.length]
+                : {})}
               onMouseEnter={() => {
                 hoverRef.current = idx;
               }}
@@ -495,7 +502,11 @@ export function FauxSphere({
                 e.stopPropagation();
                 // Lock this card active + freeze the canvas while the panel is open.
                 lockedRef.current = idx;
-                onCardClick?.();
+                const company =
+                  companies.length > 0
+                    ? companies[idx % companies.length]
+                    : undefined;
+                onCardClick?.(company as Company);
               }}
               style={{
                 position: "absolute",

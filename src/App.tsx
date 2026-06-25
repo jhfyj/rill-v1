@@ -7,6 +7,7 @@ import { PhilosophySection } from "./sections/PhilosophySection";
 import { FauxSphereSection } from "./sections/FauxSphereSection";
 import { FinaleSection } from "./sections/FinaleSection";
 import { useSectionNavigation } from "./hooks/useSectionNavigation";
+import { AdminPage } from "./pages/AdminPage";
 
 const SECTIONS = [
   <LandingSection key="landing" />,
@@ -16,13 +17,24 @@ const SECTIONS = [
 ];
 
 function App() {
-  const { index, direction } = useSectionNavigation({ count: SECTIONS.length });
+  // Route /admin to the admin dashboard; everything else is the main site.
+  const isAdmin = window.location.pathname.startsWith("/admin");
 
-  // Section 1 (Landing, index 0) uses the normal cursor: drop the
-  // `custom-cursor` class so index.css stops hiding the native pointer there.
+  const { index, direction } = useSectionNavigation({
+    count: SECTIONS.length,
+    // Disable keyboard navigation when on the admin page.
+    enabled: !isAdmin,
+  });
+
+  // Section 1 (Landing, index 0) uses the normal cursor.
   useEffect(() => {
+    if (isAdmin) return;
     document.documentElement.classList.toggle("custom-cursor", index !== 0);
-  }, [index]);
+  }, [index, isAdmin]);
+
+  if (isAdmin) {
+    return <AdminPage />;
+  }
 
   return (
     <>

@@ -9,6 +9,8 @@ import {
 } from "motion/react";
 import { FauxSphere } from "../components/FauxSphere";
 import { CompanyDetailPanel } from "../components/CompanyDetailPanel";
+import { fetchCompanies } from "../lib/api";
+import type { Company } from "../types/company";
 
 const EASE_OUT: Transition["ease"] = [0.22, 1, 0.36, 1];
 
@@ -27,9 +29,7 @@ const PANEL_W = 460;
 export function FauxSphereSection() {
   const reduceMotion = useReducedMotion();
 
-  // Post-mount state flip so the heading entrance plays on every re-entry — the
-  // deck's <AnimatePresence> suppresses nested mount animations, but a plain
-  // `animate` prop change isn't subject to that. Same pattern as the other sections.
+  // Post-mount state flip so the heading entrance plays on every re-entry.
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setShown(true));
@@ -42,6 +42,8 @@ export function FauxSphereSection() {
 
   // Detail panel. Opens on card click; Esc closes.
   const [panelOpen, setPanelOpen] = useState(false);
+  const [activeCompany, setActiveCompany] = useState<Company | null>(null);
+
   useEffect(() => {
     if (!panelOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -50,6 +52,17 @@ export function FauxSphereSection() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [panelOpen]);
+
+  // Fetch companies from the backend.
+  const [companies, setCompanies] = useState<Company[]>([]);
+  useEffect(() => {
+    fetchCompanies()
+      .then(setCompanies)
+      .catch(() => {
+        // Silently fall back to placeholder cards if the API is unavailable.
+        setCompanies([]);
+      });
+  }, []);
 
   const textGroup: Variants = {
     hidden: {},
@@ -88,22 +101,18 @@ export function FauxSphereSection() {
       >
         <FauxSphere
           className="pointer-events-none absolute inset-0 z-10"
-          onCardClick={() => setPanelOpen(true)}
+          companies={companies}
+          onCardClick={(company) => {
+            setActiveCompany(company ?? null);
+            setPanelOpen(true);
+          }}
           frozen={panelOpen}
           onActiveChange={setCardActive}
         />
 
-        {/* Centered two-tone heading — pointer-events-none so it doesn't block
-            hovering/clicking the cards beneath it. While a card is active
-            (hovered/locked) the text fades out and the feathered blur dissolves
-            to focus on that card. The blur layer animates its blur RADIUS (not
-            opacity) — animating opacity on a backdrop-filter element forces a
-            slow non-GPU recomposite (the blur visibly lags ~seconds), whereas
-            the radius interpolates cleanly and stays glued to the text. */}
+        {/* Centered two-tone heading */}
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center px-[8vw] text-center">
           <div className="relative">
-            {/* Feathered blur backdrop — sits behind the text, extends past it,
-                and fades to nothing via a radial mask so there's no box edge. */}
             <motion.div
               aria-hidden
               className="absolute inset-0 -m-[10vw]"
@@ -123,7 +132,6 @@ export function FauxSphereSection() {
               transition={{ duration: 0.35, ease: EASE_OUT }}
             />
 
-            {/* Text — fades on hover (cheap opacity, no backdrop-filter here). */}
             <motion.div
               className="relative"
               animate={{ opacity: cardActive ? 0 : 1 }}
@@ -141,8 +149,6 @@ export function FauxSphereSection() {
                 >
                   Let us match you with the fastest growing teams
                   <span className="mt-3 block font-body text-[18px] font-normal text-[#B4B4B4]">
-                    {/* Desktop uses cursor-lead rotation; touch/mobile uses a
-                        two-finger drag — so the verb changes by viewport. */}
                     <span className="hidden md:inline">Move your cursor</span>
                     <span className="md:hidden">Drag</span>{" "}
                     and click to discover the latest teams hiring now
@@ -178,7 +184,10 @@ export function FauxSphereSection() {
               transition={panelTransition}
               onWheel={(e) => e.stopPropagation()}
             >
-              <CompanyDetailPanel onClose={() => setPanelOpen(false)} />
+              <CompanyDetailPanel
+                {...(activeCompany ?? {})}
+                onClose={() => setPanelOpen(false)}
+              />
             </motion.aside>
           )}
         </AnimatePresence>,
