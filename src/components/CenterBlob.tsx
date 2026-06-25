@@ -46,7 +46,8 @@ interface ActiveRipple {
  * shape is one <circle> filled with a five-stop radial gradient (deep purple
  * → blue → turquoise → transparent). On desktop, a turbulence + displacement
  * filter warps its edges and ambient ripple rings expand outward. On mobile,
- * both the wobble filter and ripples are disabled to avoid GPU/rAF lag.
+ * ALL filter defs, ripple elements, and their rAF loops are completely omitted
+ * from the DOM to prevent mobile GPUs from compiling unused filter shaders.
  */
 export function CenterBlob({ className }: CenterBlobProps) {
   const reduceMotion = useReducedMotion();
@@ -96,7 +97,7 @@ export function CenterBlob({ className }: CenterBlobProps) {
     const start = performance.now();
 
     if (isMobile) {
-      // On mobile: just run the entrance animation, then stop the loop.
+      // On mobile: just run the entrance animation, then stop the loop entirely.
       const step = (now: number) => {
         const c = circleRef.current;
         if (c) {
@@ -203,6 +204,35 @@ export function CenterBlob({ className }: CenterBlobProps) {
     return () => cancelAnimationFrame(raf);
   }, [reduceMotion, isMobile]);
 
+  // ── Mobile render: plain gradient circle, zero filters, zero ripple DOM ──
+  if (isMobile) {
+    return (
+      <svg
+        aria-hidden
+        className={className}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <defs>
+          <radialGradient id="centerBlobGrad">
+            <stop offset="0%" stopColor="#2c3ee0" stopOpacity="0.5" />
+            <stop offset="22%" stopColor="#6a90e8" stopOpacity="0.4" />
+            <stop offset="52%" stopColor="#759cca" stopOpacity="0.24" />
+            <stop offset="80%" stopColor="#a5d5e3" stopOpacity="0.1" />
+            <stop offset="100%" stopColor="#d2e7ee" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+        <circle
+          ref={circleRef}
+          cx="50%"
+          cy="50%"
+          r={reduceMotion ? RADIUS : 0}
+          fill="url(#centerBlobGrad)"
+        />
+      </svg>
+    );
+  }
+
+  // ── Desktop render: full wobble filter + ripple rings ─────────────────────
   return (
     <svg
       ref={svgRef}
@@ -223,25 +253,22 @@ export function CenterBlob({ className }: CenterBlobProps) {
           <stop offset="50%" stopColor="#4d59ff" />
           <stop offset="100%" stopColor="#9ee9ff" />
         </linearGradient>
-        {/* Wobble filter — only applied on desktop */}
-        {!isMobile && (
-          <filter id="blobWobble" x="-50%" y="-50%" width="200%" height="200%">
-            <feTurbulence
-              type="fractalNoise"
-              baseFrequency="0.008"
-              numOctaves="2"
-              result="noise"
-            />
-            <feOffset ref={offsetRef} in="noise" dx="0" dy="0" result="shiftedNoise" />
-            <feDisplacementMap
-              in="SourceGraphic"
-              in2="shiftedNoise"
-              scale={DISPLACE_SCALE}
-              xChannelSelector="R"
-              yChannelSelector="G"
-            />
-          </filter>
-        )}
+        <filter id="blobWobble" x="-50%" y="-50%" width="200%" height="200%">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.008"
+            numOctaves="2"
+            result="noise"
+          />
+          <feOffset ref={offsetRef} in="noise" dx="0" dy="0" result="shiftedNoise" />
+          <feDisplacementMap
+            in="SourceGraphic"
+            in2="shiftedNoise"
+            scale={DISPLACE_SCALE}
+            xChannelSelector="R"
+            yChannelSelector="G"
+          />
+        </filter>
         <filter id="rippleBlur" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="6" />
         </filter>
@@ -256,12 +283,10 @@ export function CenterBlob({ className }: CenterBlobProps) {
           cy="50%"
           r={reduceMotion ? RADIUS : 0}
           fill="url(#centerBlobGrad)"
-          // Only apply the expensive wobble filter on desktop
-          filter={isMobile ? undefined : "url(#blobWobble)"}
+          filter="url(#blobWobble)"
         />
       </g>
-      {/* Ripple rings — desktop only */}
-      {!isMobile && <g ref={ripplesGroupRef} filter="url(#rippleBlur)" />}
+      <g ref={ripplesGroupRef} filter="url(#rippleBlur)" />
     </svg>
   );
 }

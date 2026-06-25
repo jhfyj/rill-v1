@@ -18,6 +18,41 @@ const EMPTY: Omit<Company, "id" | "createdAt" | "updatedAt"> = {
   team: [],
 };
 
+// Word count limits
+const LIMITS = {
+  description: { min: 5, max: 20 },
+  details: { min: 10, max: 30 },
+  longer: { min: 30, max: 120 },
+} as const;
+
+function wordCount(text: string): number {
+  return text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+}
+
+function WordCount({
+  text,
+  min,
+  max,
+}: {
+  text: string;
+  min: number;
+  max: number;
+}) {
+  const count = wordCount(text);
+  const over = count > max;
+  const under = text.trim() !== "" && count < min;
+  return (
+    <span
+      className={`ml-auto font-body text-[11px] ${
+        over ? "text-red-500" : under ? "text-amber-500" : "text-ink-muted/50"
+      }`}
+    >
+      {count} / {max} words
+      {under && count > 0 ? ` (min ${min})` : ""}
+    </span>
+  );
+}
+
 export function CompanyForm({ initial, onSave, onCancel }: CompanyFormProps) {
   const [form, setForm] = useState<Omit<Company, "id" | "createdAt" | "updatedAt">>({
     ...EMPTY,
@@ -66,6 +101,26 @@ export function CompanyForm({ initial, onSave, onCancel }: CompanyFormProps) {
       setError("Company name is required.");
       return;
     }
+
+    // Word count validation
+    const checks: Array<[string, string, number, number]> = [
+      ["Short Description", form.description, LIMITS.description.min, LIMITS.description.max],
+      ["Card Text", form.details, LIMITS.details.min, LIMITS.details.max],
+      ["Long Description", form.longer, LIMITS.longer.min, LIMITS.longer.max],
+    ];
+    for (const [label, text, min, max] of checks) {
+      if (text.trim() === "") continue; // optional fields — skip if empty
+      const wc = wordCount(text);
+      if (wc < min) {
+        setError(`${label} must be at least ${min} words (currently ${wc}).`);
+        return;
+      }
+      if (wc > max) {
+        setError(`${label} must be at most ${max} words (currently ${wc}).`);
+        return;
+      }
+    }
+
     setError("");
     setSaving(true);
     try {
@@ -80,7 +135,7 @@ export function CompanyForm({ initial, onSave, onCancel }: CompanyFormProps) {
   const inputCls =
     "w-full rounded-xl border border-black/15 bg-surface px-4 py-2.5 font-body text-sm text-ink outline-none transition focus:border-[#5160c8] focus:ring-2 focus:ring-[#5160c8]/20";
   const labelCls =
-    "mb-1 block font-body text-xs uppercase tracking-[0.12em] text-ink-muted";
+    "mb-1 flex items-center gap-2 font-body text-xs uppercase tracking-[0.12em] text-ink-muted";
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -117,34 +172,64 @@ export function CompanyForm({ initial, onSave, onCancel }: CompanyFormProps) {
         />
       </div>
 
+      {/* Short Description */}
       <div>
-        <label className={labelCls}>Short Description</label>
+        <label className={labelCls}>
+          Short Description
+          <WordCount
+            text={form.description}
+            min={LIMITS.description.min}
+            max={LIMITS.description.max}
+          />
+        </label>
         <textarea
           className={inputCls}
           rows={2}
-          placeholder="One- to two-line summary shown on the card"
+          placeholder={`One- to two-line summary shown on the card (${LIMITS.description.min}–${LIMITS.description.max} words)`}
           value={form.description}
           onChange={(e) => set("description", e.target.value)}
         />
       </div>
 
+      {/* Card Text (was "Details / fine print") */}
       <div>
-        <label className={labelCls}>Details (fine print)</label>
+        <label className={labelCls}>
+          Card Text
+          <span className="normal-case tracking-normal text-ink-muted/60">
+            — shown on card only
+          </span>
+          <WordCount
+            text={form.details}
+            min={LIMITS.details.min}
+            max={LIMITS.details.max}
+          />
+        </label>
         <textarea
           className={inputCls}
           rows={3}
-          placeholder="Longer fine-print blurb shown below the summary"
+          placeholder={`Fine-print blurb displayed on the company card (${LIMITS.details.min}–${LIMITS.details.max} words)`}
           value={form.details}
           onChange={(e) => set("details", e.target.value)}
         />
       </div>
 
+      {/* Long Description (was "Extended Description") */}
       <div>
-        <label className={labelCls}>Extended Description (panel only)</label>
+        <label className={labelCls}>
+          Long Description
+          <span className="normal-case tracking-normal text-ink-muted/60">
+            — panel only
+          </span>
+          <WordCount
+            text={form.longer}
+            min={LIMITS.longer.min}
+            max={LIMITS.longer.max}
+          />
+        </label>
         <textarea
           className={inputCls}
-          rows={3}
-          placeholder="Full description shown in the side panel"
+          rows={4}
+          placeholder={`Full description shown in the side panel when a card is clicked (${LIMITS.longer.min}–${LIMITS.longer.max} words)`}
           value={form.longer}
           onChange={(e) => set("longer", e.target.value)}
         />
@@ -153,7 +238,12 @@ export function CompanyForm({ initial, onSave, onCancel }: CompanyFormProps) {
       {/* ── Open Roles ── */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <span className={labelCls + " mb-0"}>Open Roles</span>
+          <span className={labelCls + " mb-0"}>
+            Open Roles
+            <span className="normal-case tracking-normal text-ink-muted/60">
+              — leave empty to hide on site
+            </span>
+          </span>
           <button
             type="button"
             onClick={addRole}
@@ -163,7 +253,7 @@ export function CompanyForm({ initial, onSave, onCancel }: CompanyFormProps) {
           </button>
         </div>
         {form.roles.length === 0 && (
-          <p className="font-body text-xs text-ink-muted/60">No roles yet.</p>
+          <p className="font-body text-xs text-ink-muted/60">No roles added — section will be hidden on the site.</p>
         )}
         {form.roles.map((r, i) => (
           <div key={i} className="mb-2 flex items-center gap-2">
@@ -194,7 +284,12 @@ export function CompanyForm({ initial, onSave, onCancel }: CompanyFormProps) {
       {/* ── Team ── */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <span className={labelCls + " mb-0"}>Team Members</span>
+          <span className={labelCls + " mb-0"}>
+            Team Members
+            <span className="normal-case tracking-normal text-ink-muted/60">
+              — leave empty to hide on site
+            </span>
+          </span>
           <button
             type="button"
             onClick={addMember}
@@ -204,7 +299,7 @@ export function CompanyForm({ initial, onSave, onCancel }: CompanyFormProps) {
           </button>
         </div>
         {form.team.length === 0 && (
-          <p className="font-body text-xs text-ink-muted/60">No team members yet.</p>
+          <p className="font-body text-xs text-ink-muted/60">No members added — section will be hidden on the site.</p>
         )}
         {form.team.map((m, i) => (
           <div

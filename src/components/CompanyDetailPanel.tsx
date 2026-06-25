@@ -16,31 +16,15 @@ export interface CompanyDetailPanelProps {
   category?: string;
   name?: string;
   description?: string;
+  /** Card text (fine print on the card) — NOT shown in the panel. */
   details?: string;
+  /** Long description — shown only in the panel. */
   longer?: string;
   roles?: Role[];
   team?: Member[];
   /** Back-arrow handler — closes the panel. */
   onClose?: () => void;
 }
-
-const DEFAULT_ROLES: Role[] = [
-  { title: "Data engineer", type: "full time" },
-  { title: "Data engineer", type: "full time" },
-];
-
-const DEFAULT_TEAM: Member[] = [
-  {
-    name: "John Smith",
-    role: "Founding engineer",
-    bio: "Personal bio description personal description personal description",
-  },
-  {
-    name: "John Smith",
-    role: "Founding engineer",
-    bio: "Personal bio description personal description personal description",
-  },
-];
 
 /** Small blue mono section label (Open roles / Team). */
 function SectionLabel({ children }: { children: string }) {
@@ -54,22 +38,27 @@ function SectionLabel({ children }: { children: string }) {
 /**
  * Expanded detail view for a company card — shown in the side panel that opens
  * beside the sphere (see FauxSphereSection). Mirrors CompanyCard's header, then
- * adds a longer description, an open-roles list (dotted leaders), and a team
- * grid. Props default to lorem placeholders so it renders standalone; real data
- * is passed in once cards carry it.
+ * adds a long description, an open-roles list (dotted leaders), and a team grid.
+ *
+ * - `details` (card text) is intentionally NOT rendered here.
+ * - Open Roles and Team sections are hidden entirely when their arrays are empty
+ *   or contain only blank entries.
  */
 export function CompanyDetailPanel({
   stage = "Series A",
   category = "Software",
   name = "Company name",
   description = "Company description lorem ipsum Company description lorem ipsum",
-  details = "Company description lorem ipsum Company description lorem ipsum" +
-    "Company description lorem ipsumCompany description lorem ipsum",
-  longer = "Longer description",
-  roles = DEFAULT_ROLES,
-  team = DEFAULT_TEAM,
+  longer = "",
+  roles = [],
+  team = [],
   onClose,
 }: CompanyDetailPanelProps) {
+  // Filter out blank/incomplete entries so the section only shows if there's
+  // real content.
+  const validRoles = roles.filter((r) => r.title?.trim());
+  const validTeam = team.filter((m) => m.name?.trim());
+
   return (
     <div className="flex h-full flex-col">
       {/* Back arrow */}
@@ -111,48 +100,52 @@ export function CompanyDetailPanel({
         <p className="mt-3 font-heading text-[16px] font-normal leading-snug text-ink-muted">
           {description}
         </p>
-        <p className="mt-4 font-body text-[13px] leading-relaxed text-ink-muted/70">
-          {details}
-        </p>
-        <p className="mt-4 font-body text-[13px] leading-relaxed text-ink-muted">
-          {longer}
-        </p>
+        {/* details (card text) is intentionally omitted from the panel */}
+        {longer && (
+          <p className="mt-4 font-body text-[13px] leading-relaxed text-ink-muted">
+            {longer}
+          </p>
+        )}
 
-        {/* Open roles */}
-        <div className="mt-9">
-          <SectionLabel>Open roles</SectionLabel>
-          <div className="mt-3">
-            {roles.map((r, i) => (
-              <div
-                key={i}
-                className="flex items-baseline gap-3 py-1.5 font-body text-sm text-ink"
-              >
-                <span>{r.title}</span>
-                <span className="mb-1 flex-1 border-b border-dotted border-black/30" />
-                <span className="text-ink-muted">{r.type}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Team */}
-        <div className="mt-9">
-          <SectionLabel>Team</SectionLabel>
-          <div className="mt-4 grid grid-cols-2 gap-5">
-            {team.map((m, i) => (
-              <div key={i}>
-                <div className="aspect-square w-full rounded-lg bg-surface-muted" />
-                <div className="mt-3 font-heading text-base text-ink">
-                  {m.name}
+        {/* Open roles — hidden when empty */}
+        {validRoles.length > 0 && (
+          <div className="mt-9">
+            <SectionLabel>Open roles</SectionLabel>
+            <div className="mt-3">
+              {validRoles.map((r, i) => (
+                <div
+                  key={i}
+                  className="flex items-baseline gap-3 py-1.5 font-body text-sm text-ink"
+                >
+                  <span>{r.title}</span>
+                  <span className="mb-1 flex-1 border-b border-dotted border-black/30" />
+                  <span className="text-ink-muted">{r.type}</span>
                 </div>
-                <div className="font-body text-xs text-ink-muted">{m.role}</div>
-                <p className="mt-2 font-body text-[11px] leading-relaxed text-ink-muted/70">
-                  {m.bio}
-                </p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Team — hidden when empty */}
+        {validTeam.length > 0 && (
+          <div className="mt-9">
+            <SectionLabel>Team</SectionLabel>
+            <div className="mt-4 grid grid-cols-2 gap-5">
+              {validTeam.map((m, i) => (
+                <div key={i}>
+                  <div className="aspect-square w-full rounded-lg bg-surface-muted" />
+                  <div className="mt-3 font-heading text-base text-ink">
+                    {m.name}
+                  </div>
+                  <div className="font-body text-xs text-ink-muted">{m.role}</div>
+                  <p className="mt-2 font-body text-[11px] leading-relaxed text-ink-muted/70">
+                    {m.bio}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Call to action */}
         <div className="mt-10 text-center">
