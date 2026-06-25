@@ -15,7 +15,7 @@ import type { Company } from "../types/company";
 const EASE_OUT: Transition["ease"] = [0.22, 1, 0.36, 1];
 
 /** Open width of the detail panel (px). */
-const PANEL_W = 460;
+const PANEL_W = 520;
 
 /**
  * Section 3 — integrations / hiring showcase. A faux integration sphere (a
@@ -29,7 +29,9 @@ const PANEL_W = 460;
 export function FauxSphereSection() {
   const reduceMotion = useReducedMotion();
 
-  // Post-mount state flip so the heading entrance plays on every re-entry.
+  // Post-mount state flip so the heading entrance plays on every re-entry — the
+  // deck's <AnimatePresence> suppresses nested mount animations, but a plain
+  // `animate` prop change isn't subject to that. Same pattern as the other sections.
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setShown(true));
@@ -39,6 +41,17 @@ export function FauxSphereSection() {
 
   // A card is active (hovered or locked) — used to fade the heading out.
   const [cardActive, setCardActive] = useState(false);
+
+  // On phones the detail panel takes the full viewport width instead of the
+  // fixed 520px side panel. `md` = 768px.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   // Detail panel. Opens on card click; Esc closes.
   const [panelOpen, setPanelOpen] = useState(false);
@@ -110,7 +123,10 @@ export function FauxSphereSection() {
           onActiveChange={setCardActive}
         />
 
-        {/* Centered two-tone heading */}
+        {/* Centered two-tone heading — pointer-events-none so it doesn't block
+            hovering/clicking the cards beneath it. While a card is active
+            (hovered/locked) the text fades out and the feathered blur dissolves
+            to focus on that card. */}
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center px-[8vw] text-center">
           <div className="relative">
             <motion.div
@@ -149,9 +165,16 @@ export function FauxSphereSection() {
                 >
                   Let us match you with the fastest growing teams
                   <span className="mt-3 block font-body text-[18px] font-normal text-[#B4B4B4]">
-                    <span className="hidden md:inline">Move your cursor</span>
-                    <span className="md:hidden">Drag</span>{" "}
-                    and click to discover the latest teams hiring now
+                    {/* Desktop uses cursor-lead rotation + click; touch/mobile
+                        uses a two-finger drag + tap — so the whole verb phrase
+                        changes by viewport. */}
+                    <span className="hidden md:inline">
+                      Move your cursor and click
+                    </span>
+                    <span className="md:hidden">
+                      Drag with two fingers and tap
+                    </span>{" "}
+                    to discover the latest teams hiring now
                   </span>
                 </motion.h2>
               </motion.div>
@@ -165,7 +188,7 @@ export function FauxSphereSection() {
       <motion.div
         className="shrink-0"
         initial={false}
-        animate={{ width: panelOpen ? PANEL_W : 0 }}
+        animate={{ width: panelOpen && !isMobile ? PANEL_W : 0 }}
         transition={panelTransition}
       />
 
@@ -177,7 +200,7 @@ export function FauxSphereSection() {
             <motion.aside
               key="company-panel"
               className="fixed right-0 top-0 z-[60] h-screen overflow-hidden border-l border-black/10 bg-white shadow-1xl"
-              style={{ width: PANEL_W }}
+              style={{ width: isMobile ? "100%" : PANEL_W }}
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}

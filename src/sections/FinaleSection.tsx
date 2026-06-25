@@ -116,7 +116,11 @@ export function FinaleSection() {
         transition={{ duration: reduceMotion ? 0 : 0.7, delay: 0.6, ease: EASE_OUT }}
         className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-4 px-[9vw] pb-7 font-body text-[10px] text-brand-50/70 sm:text-xs lg:text-[13px]"
       >
-        <span className="flex-1">rill@gmail.com</span>
+        <span className="flex-1">
+          <a href="mailto:areyoufor@rill.so" className="hover:text-brand-50">
+            areyoufor@rill.so
+          </a>
+        </span>
         <span className="flex-1 text-center uppercase tracking-[0.18em]">
           ©2026 All Rights Reserved
         </span>
