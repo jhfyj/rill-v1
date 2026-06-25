@@ -1,4 +1,4 @@
-import { parse } from "cookie";
+import { parseCookie } from "cookie";
 
 const SESSION_COOKIE = "rill_admin_session";
 
@@ -9,7 +9,7 @@ const SESSION_COOKIE = "rill_admin_session";
  */
 export function isAuthenticated(req) {
   const cookieHeader = req.headers["cookie"] || "";
-  const cookies = parse(cookieHeader);
+  const cookies = parseCookie(cookieHeader);
   const token = cookies[SESSION_COOKIE];
   if (!token) return false;
   return token === process.env.ADMIN_SESSION_SECRET;
