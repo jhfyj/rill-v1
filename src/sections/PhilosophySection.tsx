@@ -103,10 +103,7 @@ export function PhilosophySection({ onNext }: PhilosophySectionProps) {
   // NOTE: touch stopPropagation is now handled inside the extra-swipe
   // useEffect below, which combines both concerns in one listener set.
 
-  // Detect reaching the bottom and fire onNext — but only after the user
-  // has been sitting at the bottom for a short dwell period (600 ms) AND
-  // has performed a deliberate extra downward swipe while already at the
-  // bottom. This prevents accidental advances mid-read.
+  // Detect reaching the bottom and arm the trigger after a 600ms dwell.
   useEffect(() => {
     if (!isMobile) return;
     const el = scrollRef.current;
@@ -119,9 +116,9 @@ export function PhilosophySection({ onNext }: PhilosophySectionProps) {
         // Just arrived at the bottom — start the dwell timer.
         atBottomRef.current = true;
         dwellTimerRef.current = setTimeout(() => {
-          // After 600 ms at the bottom, arm the trigger so the next
-          // deliberate downward overscroll fires onNext.
-          // We rely on the touchend handler below to detect that extra swipe.
+          // Dwell complete: clear the ref to null so the overscroll
+          // condition (dwellTimerRef.current === null) becomes true.
+          dwellTimerRef.current = null;
         }, 600);
       } else if (!atBottom) {
         // Scrolled back up — cancel everything.
@@ -140,8 +137,12 @@ export function PhilosophySection({ onNext }: PhilosophySectionProps) {
     };
   }, [isMobile]);
 
-  // Extra-swipe detection: when the user is already at the bottom and swipes
-  // down again (overscroll intent), advance to the next section.
+  // Touch handling:
+  // - Always stopPropagation so the deck never sees mid-content swipes.
+  // - Exception: upward swipe (delta < -40px) when already at the TOP of
+  //   the scroll container — let it propagate so the deck can go back to
+  //   Section 1.
+  // - Downward overscroll at the bottom (after 600ms dwell) fires onNext.
   useEffect(() => {
     if (!isMobile) return;
     const el = scrollRef.current;
@@ -150,21 +151,35 @@ export function PhilosophySection({ onNext }: PhilosophySectionProps) {
     let swipeStartY: number | null = null;
 
     const onTouchStart = (e: TouchEvent) => {
-      e.stopPropagation();
       swipeStartY = e.touches[0]?.clientY ?? null;
+      // Always stop propagation on touchstart to prevent deck interference.
+      e.stopPropagation();
     };
     const onTouchMove = (e: TouchEvent) => {
       e.stopPropagation();
     };
     const onTouchEnd = (e: TouchEvent) => {
-      e.stopPropagation();
-      if (swipeStartY === null) return;
+      if (swipeStartY === null) {
+        e.stopPropagation();
+        return;
+      }
       const endY = e.changedTouches[0]?.clientY ?? swipeStartY;
       const delta = swipeStartY - endY; // positive = swipe up (scroll down)
       swipeStartY = null;
 
-      // Only fire if: at the bottom, dwell timer has elapsed (600 ms), and
-      // the swipe was a clear downward intent (delta > 30 px).
+      const atTop = el.scrollTop < 4;
+
+      // Upward swipe at the very top — let the deck handle it (go back).
+      if (atTop && delta < -40) {
+        // Do NOT stopPropagation — the deck's window touchend listener
+        // will see this and navigate back to Section 1.
+        return;
+      }
+
+      // All other swipes: stop propagation so the deck is never triggered.
+      e.stopPropagation();
+
+      // Downward overscroll at the bottom — advance to Section 3.
       if (
         atBottomRef.current &&
         dwellTimerRef.current === null &&
