@@ -52,12 +52,14 @@ interface ActiveRipple {
 export function CenterBlob({ className }: CenterBlobProps) {
   const reduceMotion = useReducedMotion();
 
-  // Disable the expensive wobble filter and ripples on mobile (< 768px).
-  const [isMobile, setIsMobile] = useState(false);
+  // Detect mobile synchronously on first render so the correct SVG variant
+  // is painted immediately — no flash of the desktop (filter-heavy) version.
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches
+  );
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
     const update = () => setIsMobile(mq.matches);
-    update();
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
