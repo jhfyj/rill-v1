@@ -364,32 +364,41 @@ export function FauxSphere({
     return () => cancelAnimationFrame(raf);
   }, [reduceMotion]);
 
-  // Touch-drag (mobile). TWO fingers drag/spin the sphere; one finger is left
-  // for the deck's swipe navigation. While 2+ fingers are down we stopPropagation
+  // Touch-drag (mobile). Any number of fingers drag/spin the sphere — on
+  // mobile the page scrolls natively so we don't need to reserve one finger
+  // for deck navigation. While 2+ fingers are down we stopPropagation
   // so the deck never sees the gesture; touch-action:none also blocks pinch-zoom.
   // We track the midpoint of the two touches as the drag point.
   const onTouchStart = (e: ReactTouchEvent) => {
-    if (e.touches.length >= 2) {
-      multiTouchRef.current = true;
-      touchModeRef.current = true;
-      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      dragRef.current = {
-        dragging: true,
-        lastX: mx,
-        lastY: my,
-        lastT: performance.now(),
-      };
-      dragVelRef.current = { x: 0, y: 0 };
-    }
+    // One OR two fingers both spin the sphere on mobile (no deck to reserve
+    // a finger for). Two-finger gestures still stopPropagation so the browser
+    // doesn't interpret them as pinch-zoom.
+    touchModeRef.current = true;
+    if (e.touches.length >= 2) multiTouchRef.current = true;
+    const mx =
+      e.touches.length >= 2
+        ? (e.touches[0].clientX + e.touches[1].clientX) / 2
+        : e.touches[0].clientX;
+    const my =
+      e.touches.length >= 2
+        ? (e.touches[0].clientY + e.touches[1].clientY) / 2
+        : e.touches[0].clientY;
+    dragRef.current = { dragging: true, lastX: mx, lastY: my, lastT: performance.now() };
+    dragVelRef.current = { x: 0, y: 0 };
     if (multiTouchRef.current) e.stopPropagation();
   };
   const onTouchMove = (e: ReactTouchEvent) => {
     if (multiTouchRef.current) e.stopPropagation();
     const d = dragRef.current;
-    if (!d.dragging || e.touches.length < 2) return;
-    const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    if (!d.dragging) return;
+    const mx =
+      e.touches.length >= 2
+        ? (e.touches[0].clientX + e.touches[1].clientX) / 2
+        : e.touches[0].clientX;
+    const my =
+      e.touches.length >= 2
+        ? (e.touches[0].clientY + e.touches[1].clientY) / 2
+        : e.touches[0].clientY;
     const now = performance.now();
     const dx = mx - d.lastX;
     const dy = my - d.lastY;
@@ -403,11 +412,17 @@ export function FauxSphere({
   };
   const onTouchEnd = (e: ReactTouchEvent) => {
     if (multiTouchRef.current) e.stopPropagation();
-    // Dropping below two fingers ends the drag (momentum carries on); the
-    // gesture block lifts only once every finger is up, so the stray final
-    // touchend can't reach the deck's swipe navigation.
-    if (e.touches.length < 2) dragRef.current.dragging = false;
-    if (e.touches.length === 0) multiTouchRef.current = false;
+    if (e.touches.length === 0) {
+      dragRef.current.dragging = false;
+      multiTouchRef.current = false;
+    } else if (e.touches.length < 2) {
+      // Dropped to one finger — keep dragging with the remaining finger.
+      multiTouchRef.current = false;
+      const t = e.touches[0];
+      dragRef.current.lastX = t.clientX;
+      dragRef.current.lastY = t.clientY;
+      dragRef.current.lastT = performance.now();
+    }
   };
 
   return (

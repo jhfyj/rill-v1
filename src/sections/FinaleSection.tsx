@@ -82,7 +82,7 @@ export function FinaleSection() {
   // ── Mobile: plain block layout ───────────────────────────────────────────
   if (isMobile) {
     return (
-      <section className="relative w-full h-full overflow-hidden bg-[#fbfaf7] flex flex-col items-start justify-center px-6 py-16">
+      <section className="relative w-full h-full overflow-hidden bg-[#fbfaf7] flex flex-col items-start justify-center px-6">
         <GradientFlow className="absolute inset-0 z-0" />
         <motion.div
           variants={group}
@@ -114,18 +114,19 @@ export function FinaleSection() {
             </Button>
           </motion.div>
         </motion.div>
+        {/* Footer pinned to the bottom of the section */}
         <motion.footer
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: shown || reduceMotion ? 1 : 0 }}
           transition={{ duration: reduceMotion ? 0 : 0.7, delay: 0.6, ease: EASE_OUT }}
-          className="relative z-10 mt-16 flex flex-col gap-2 font-body text-[11px] text-brand-50/70"
+          className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-2 px-6 pb-6 font-body text-[10px] text-brand-900/50"
         >
-          <a href="mailto:areyoufor@rill.so" className="hover:text-brand-50">
+          <a href="mailto:areyoufor@rill.so" className="hover:text-brand-900">
             areyoufor@rill.so
           </a>
-          <span className="uppercase tracking-[0.18em]">©2026 All Rights Reserved</span>
-          <span className="whitespace-nowrap uppercase tracking-[0.18em] tabular-nums">
-            New&nbsp;York&nbsp;&nbsp;•&nbsp;&nbsp;{clock}
+          <span className="uppercase tracking-[0.15em]">©2026 All Rights Reserved</span>
+          <span className="whitespace-nowrap uppercase tracking-[0.15em] tabular-nums">
+            {clock}
           </span>
         </motion.footer>
       </section>

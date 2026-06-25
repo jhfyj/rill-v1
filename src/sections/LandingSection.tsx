@@ -97,6 +97,7 @@ export function LandingSection() {
       <section className="relative w-full h-full bg-[#fbfaf7] flex flex-col items-center justify-center px-6">
         <RippleField
           startDelayMs={rippleDelayMs}
+          config={{ maxConcurrent: 2, spawnIntervalMs: [2000, 3500] }}
           className="pointer-events-none absolute inset-0 z-10"
         />
         <motion.div
